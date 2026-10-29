@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.106
+
+- Refresh the Spotify account's separate device coordinator before matching a speaker. Updating the media player alone could leave its five-minute Connect cache stale.
+- Report refresh failures separately and never use an old list after a failed refresh.
+- Keep automatic name matching and the Play on group selector; no manual Spotify device selector is required.
+- Dismiss previous Spotify destination errors after successful playback.
+
+## 1.4.104
+
+- Add a **Play on** destination selector when an existing Google Cast group is detected.
+- Choose **This speaker** to return to individual playback controls.
+- Group playback, volume and metadata use the selected Cast group; selection alone does not start or transfer music.
+- Keep unavailable selections visible so controls cannot silently fall back to local playback.
+- Discover groups from Cast device identity rather than editable entity names, and distinguish duplicate group names.
+
 ## 1.4.103
 
 - Start the LS10/iO1 MB#111 DSP listener with the registered LUCI remote ID

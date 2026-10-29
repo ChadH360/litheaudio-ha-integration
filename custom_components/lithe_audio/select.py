@@ -6,6 +6,7 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import entity_registry as er
@@ -73,7 +74,29 @@ async def async_setup_entry(
     if c["spotify_target_select"]:
         entities.append(LitheSpotifyTargetSelect(coordinator, entry))
     if c["cast_group_select"]:
-        entities.append(LitheCastGroupSelect(coordinator, entry))
+        from .group import discover_cast_groups
+
+        destination_added = False
+
+        @callback
+        def add_destination_if_available(event=None):
+            nonlocal destination_added
+            if destination_added:
+                return
+            if discover_cast_groups(hass) or entry.options.get(CONF_CAST_GROUP_ENTITY):
+                destination_added = True
+                async_add_entities([LitheCastGroupSelect(coordinator, entry)])
+
+        add_destination_if_available()
+        entry.async_on_unload(hass.bus.async_listen(
+            EVENT_STATE_CHANGED, add_destination_if_available
+        ))
+        entry.async_on_unload(hass.bus.async_listen(
+            "entity_registry_updated", add_destination_if_available
+        ))
+        entry.async_on_unload(hass.bus.async_listen(
+            "device_registry_updated", add_destination_if_available
+        ))
     if c["favourites"]:
         entities.append(LitheFavouriteSaveSlotSelect(coordinator, entry))
 
@@ -578,14 +601,15 @@ class LitheCastGroupSelect(CoordinatorEntity[LitheAudioCoordinator], SelectEntit
     media_player entity — providing true multi-room sync via Google's
     cloud infrastructure.
 
-    Picking "(None)" clears routing and restores direct local playback.
+    Picking "This speaker" restores local controls. Selection never starts
+    or transfers playback; the next playback request uses this destination.
     """
 
     _attr_has_entity_name = True
-    _attr_name = audio_control_name(10, "Cast Group")
+    _attr_name = "Play on"
     _attr_icon = "mdi:speaker-multiple"
 
-    NONE_LABEL = "(None — local only)"
+    NONE_LABEL = "This speaker"
 
     def __init__(self, coordinator: LitheAudioCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
@@ -605,7 +629,30 @@ class LitheCastGroupSelect(CoordinatorEntity[LitheAudioCoordinator], SelectEntit
 
     @property
     def available(self) -> bool:
-        return self._client.state.connected
+        # A network group remains selectable while the physical speaker is off.
+        return True
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+
+        @callback
+        def destinations_changed(event) -> None:
+            self.async_write_ha_state()
+
+        for event_type in (
+            EVENT_STATE_CHANGED, "entity_registry_updated", "device_registry_updated"
+        ):
+            self.async_on_remove(self.hass.bus.async_listen(
+                event_type, destinations_changed
+            ))
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {
+            "help": "Your next playback will use this destination. Create speaker groups in Google Home.",
+            "controlling": self.current_option,
+            "volume_control": "Group volume" if self._client.state.active_cast_group_entity else "Speaker volume",
+        }
 
     def _discover(self) -> list[dict]:
         try:
@@ -614,21 +661,35 @@ class LitheCastGroupSelect(CoordinatorEntity[LitheAudioCoordinator], SelectEntit
         except Exception:
             return []
 
+    def _destinations(self) -> dict[str, dict]:
+        groups = self._discover()
+        names = [g["name"] for g in groups]
+        destinations = {}
+        for group in groups:
+            label = f"{group['name']} — speaker group"
+            if names.count(group["name"]) > 1:
+                label += f" ({group['entity_id']})"
+            destinations[label] = group
+        return destinations
+
     @property
     def options(self) -> list[str]:
-        """Live list of Cast groups + a 'None' option to clear routing."""
-        groups = self._discover()
-        labels = [g["name"] for g in groups]
-        current = getattr(self._client.state, "active_cast_group", "")
-        if current and current not in labels:
+        labels = sorted(self._destinations(), key=str.casefold)
+        current = self.current_option
+        if current != self.NONE_LABEL and current not in labels:
             labels.append(current)
-        return [self.NONE_LABEL] + sorted(labels)
+        return [self.NONE_LABEL, *labels]
 
     @property
     def current_option(self) -> str:
-        """Current selection — the active Cast group name, or '(None)'."""
-        current = getattr(self._client.state, "active_cast_group", "")
-        return current if current else self.NONE_LABEL
+        target = self._client.state.active_cast_group_entity
+        if not target:
+            return self.NONE_LABEL
+        for label, group in self._destinations().items():
+            if group["entity_id"] == target:
+                return label
+        name = self._client.state.active_cast_group or target
+        return f"{name} — unavailable speaker group"
 
     async def async_select_option(self, option: str) -> None:
         """Set or clear the Cast group routing for this speaker."""
@@ -649,18 +710,15 @@ class LitheCastGroupSelect(CoordinatorEntity[LitheAudioCoordinator], SelectEntit
             return
 
         # Find the matching group's entity_id
-        target_entity = None
-        for cg in self._discover():
-            if cg["name"] == option:
-                target_entity = cg["entity_id"]
-                break
-        if not target_entity:
-            return
-        self._client.state.active_cast_group = option
+        group = self._destinations().get(option)
+        if group is None:
+            raise HomeAssistantError("This speaker group is no longer available. Select another destination.")
+        target_entity = group["entity_id"]
+        self._client.state.active_cast_group = group["name"]
         self._client.state.active_cast_group_entity = target_entity
         options = {
             **self._entry.options,
-            CONF_CAST_GROUP_NAME: option,
+            CONF_CAST_GROUP_NAME: group["name"],
             CONF_CAST_GROUP_ENTITY: target_entity,
         }
         self.hass.data[DOMAIN][self._entry.entry_id][

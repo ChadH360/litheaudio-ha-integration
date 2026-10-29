@@ -379,7 +379,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ("switch", f"{host}_{entry.entry_id}_bluetooth")
         )
     obsolete_unique_ids.extend([
-        ("select", f"{host}_{entry.entry_id}_cast_group"),
         ("select", f"{host}_{entry.entry_id}_spotify_target"),
     ])
     if not product_caps["favourites"]:

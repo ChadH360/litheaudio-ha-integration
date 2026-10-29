@@ -613,6 +613,9 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
             "shuffle":         s.shuffle,
             "repeat":          s.repeat,
             "supports_favourites": self._supports_favourites,
+            "play_on": getattr(s, "active_cast_group", "") or "This speaker",
+            "controlling": getattr(s, "active_cast_group", "") or "This speaker",
+            "volume_control": "Group volume" if self._active_cast_group_entity() else "Speaker volume",
             "active_cast_group": getattr(
                 s, "active_cast_group", ""
             ) or None,
@@ -2027,7 +2030,7 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         )
         target = active_group or configured_target
         if target:
-            return choose_spotify_source(sources, [target])
+            return choose_exact_spotify_source(sources, [target])
 
         # The target selector is intentionally hidden from every product.
         # Resolve the destination internally, but only when one Spotify
@@ -2046,16 +2049,11 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         self, spotify_entity_id: str
     ) -> str | None:
         """Refresh Spotify Connect devices before matching the destination."""
-        try:
-            await self.hass.services.async_call(
-                "homeassistant",
-                "update_entity",
-                {"entity_id": spotify_entity_id},
-                blocking=True,
-                context=self._context,
-            )
-        except Exception as err:
-            _LOGGER.debug("Spotify source refresh failed: %s", err)
+        from .spotify_devices import async_refresh_spotify_devices
+
+        await async_refresh_spotify_devices(
+            self.hass, spotify_entity_id, self._context
+        )
         target = self._spotify_target(spotify_entity_id)
         state = self.hass.states.get(spotify_entity_id)
         sources = state.attributes.get("source_list", []) if state else []
@@ -2094,16 +2092,14 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         if target is None:
             state = self.hass.states.get(spotify_entity_id)
             available = state.attributes.get("source_list", []) if state else []
-            configured_target = str(
-                self._entry.options.get(CONF_SPOTIFY_TARGET, "") or ""
-            )
             message = (
-                "Spotify could not find a Spotify Connect target matching "
-                f"this Lithe speaker. Speaker name: {self.name}. "
-                f"Configured legacy target: "
-                f"{configured_target or 'none'}. Available targets: "
-                f"{available or 'none'}. Rename the Spotify Connect device "
-                "to exactly match the Lithe speaker name, then retry."
+                f"Spotify's freshly refreshed device list does not include the "
+                f"playback destination for {self.name}. "
+                f"Selected group: {self._client.state.active_cast_group or 'none'}. "
+                f"Available devices: {available or 'none'}. "
+                "The device may be offline or not currently exposed to the "
+                "Spotify account connected to Home Assistant. Check its connection "
+                "and retry. No speaker renaming or manual selection is required."
             )
             _LOGGER.warning(message)
             await self.hass.services.async_call(
@@ -2145,6 +2141,11 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
             _LOGGER.info(
                 "Spotify playback delegated to %s on target %s: %s",
                 spotify_entity_id, target, spotify_content_id,
+            )
+            await self.hass.services.async_call(
+                "persistent_notification", "dismiss",
+                {"notification_id": f"lithe_spotify_{self._entry.entry_id}"},
+                blocking=False,
             )
             self._client._schedule_metadata_refresh(delays=(0.5, 1.5, 3.0))
         except Exception as err:

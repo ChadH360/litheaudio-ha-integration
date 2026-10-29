@@ -131,3 +131,33 @@ integration, `api.aladhan.com` prayer times, and audio stream URLs you choose.
 ## License
 
 MIT
+
+
+### Play on: this speaker or an existing speaker group
+
+Create speaker groups in Google Home and enable Home Assistant's Google Cast
+integration. Once a group is discovered, the Lithe device exposes **Play on**.
+Choose a named **speaker group** or choose **This speaker** to return to individual
+controls. Your next playback will use the selected destination; changing the
+selection does not start, stop, or transfer existing music.
+
+While a group is selected, playback and volume controls on this Lithe media player
+control the group and its playback information is shown. EQ and other physical
+speaker settings still belong to the individual device. Other apps and individual
+speaker entities remain independently controllable. An unavailable selected group
+produces an error instead of playing on the individual speaker.
+
+The standard Home Assistant card retains its built-in volume label. The player
+and selector expose `controlling` and `volume_control` attributes for dashboards
+that want to display “Controlling Downstairs” and “Group volume”. Add the **Play on**
+select entity alongside the media player card for destination selection.
+
+
+### Spotify device availability
+
+Spotify destinations are matched automatically to speaker names. Before playback,
+the integration refreshes the connected Spotify account's device discovery cache,
+then matches against the newly published list. No manual Spotify device selection
+is required. A refresh failure is reported separately from a device absent from
+the refreshed list. A device visible in the Spotify app may still be absent from
+the API account used by Home Assistant; check that both use the same account.

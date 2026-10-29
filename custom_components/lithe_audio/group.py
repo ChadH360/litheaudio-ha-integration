@@ -163,7 +163,6 @@ def discover_cast_groups(hass: HomeAssistant) -> list[dict[str, Any]]:
     To find them robustly, we look at every media_player entity from
     the cast integration platform and check several signals:
       - device.model contains "Group" or "Cast Group"
-      - entity_id contains "group" or "_group_"
       - device manufacturer is Google AND model includes Group
 
     Returns: [{"entity_id": "...", "name": "...", "device_id": "..."}, ...]
@@ -178,7 +177,6 @@ def discover_cast_groups(hass: HomeAssistant) -> list[dict[str, Any]]:
 
     cast_groups: list[dict[str, Any]] = []
     seen_entities: set[str] = set()
-    seen_names: set[str] = set()
 
     # Pass 1: walk every media_player from the cast platform
     for entity in ent_reg.entities.values():
@@ -195,10 +193,6 @@ def discover_cast_groups(hass: HomeAssistant) -> list[dict[str, Any]]:
             model_lower = device.model.lower()
             if "group" in model_lower:  # catches "Google Cast Group", "Cast Group", "Audio Group", etc.
                 is_group = True
-        # Also catch by entity_id naming convention
-        eid_lower = entity.entity_id.lower()
-        if "_group" in eid_lower or eid_lower.endswith("group"):
-            is_group = True
 
         if not is_group:
             continue
@@ -213,19 +207,12 @@ def discover_cast_groups(hass: HomeAssistant) -> list[dict[str, Any]]:
             or entity.original_name
             or entity.entity_id
         )
-        # Dedup by lowercased name too — two entities with the same
-        # display name (e.g. an old stale group + a current one) would
-        # otherwise both appear in the UI.
-        name_key = name.strip().lower()
-        if name_key in seen_names:
-            continue
         cast_groups.append({
             "entity_id": entity.entity_id,
             "name":      name,
             "device_id": entity.device_id or "",
         })
         seen_entities.add(entity.entity_id)
-        seen_names.add(name_key)
 
     # Pass 2 (legacy): walk the device registry directly for any cast-domain
     # devices marked as Google Cast Group, in case some weren't caught by
@@ -234,21 +221,19 @@ def discover_cast_groups(hass: HomeAssistant) -> list[dict[str, Any]]:
         if device.model != "Google Cast Group":
             continue
         for entry in er.async_entries_for_device(ent_reg, device.id):
+            if entry.platform != "cast" or entry.disabled_by:
+                continue
             if not entry.entity_id.startswith("media_player."):
                 continue
             if entry.entity_id in seen_entities:
                 continue
             disp = device.name_by_user or device.name or entry.entity_id
-            name_key = disp.strip().lower()
-            if name_key in seen_names:
-                continue
             cast_groups.append({
                 "entity_id": entry.entity_id,
                 "name":      disp,
                 "device_id": device.id,
             })
             seen_entities.add(entry.entity_id)
-            seen_names.add(name_key)
             break
 
     return cast_groups
