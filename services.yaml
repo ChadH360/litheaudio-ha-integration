@@ -1,0 +1,1245 @@
+set_volume_preset:
+  name: Set Volume (Preset)
+  description: >-
+    Quick-pick volume level. Useful for dashboards and voice assistants
+    where a slider isn't practical. The selected percentage maps directly
+    to the speaker's 0-100 volume range.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    level:
+      name: Volume Level
+      description: Choose a preset volume level.
+      required: true
+      default: "40"
+      selector:
+        select:
+          options:
+            - label: "🔇 Mute (0%)"
+              value: "0"
+            - label: "🔈 Quiet (20%)"
+              value: "20"
+            - label: "🔉 Low (40%)"
+              value: "40"
+            - label: "🔊 Medium (60%)"
+              value: "60"
+            - label: "🔊 Loud (80%)"
+              value: "80"
+            - label: "📢 Max (100%)"
+              value: "100"
+
+select_source_type:
+  name: Select Source Type
+  description: >-
+    Switch the active playback source by friendly name. Lets HA
+    automations easily change input without remembering numeric IDs.
+    Note that not all source types can be activated remotely — some
+    (like Spotify Connect, AirPlay, Cast) only become active when a
+    client device connects to the speaker. This service will request
+    the source switch but the speaker may decline if no client is
+    streaming to that source.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    source:
+      name: Source
+      description: Audio source to switch to.
+      required: true
+      default: "spotify"
+      selector:
+        select:
+          options:
+            - label: "Spotify Connect"
+              value: "spotify"
+            - label: "AirPlay"
+              value: "airplay"
+            - label: "Google Cast"
+              value: "cast"
+            - label: "Bluetooth"
+              value: "bluetooth"
+            - label: "Direct URL / Internet Radio"
+              value: "direct_url"
+            - label: "DLNA / DMR"
+              value: "dlna"
+            - label: "USB"
+              value: "usb"
+            - label: "AUX / Line-In"
+              value: "aux"
+            - label: "S/PDIF (Optical)"
+              value: "spdif"
+            - label: "Idle (No Source)"
+              value: "no_source"
+
+play_chime:
+  name: Play Chime
+  description: >-
+    Play a built-in chime on a Lithe Audio speaker. Two vendor-documented
+    methods are supported — pick whichever the speaker firmware accepts.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    chime_number:
+      name: Chime Number
+      description: "Chime to play. PRO2: 1-14. V3/iO1: 1-10. PRO: 1-6."
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 14
+          mode: box
+    method:
+      name: Method
+      description: >-
+        "Indexed" sends MB#80 "play N" (default — lightweight, no side effects).
+        "Direct" sends MB#41 PLAYITEM:DIRECT:/system/usr/songN.mp3 (vendor
+        Method 2 — use this if a slot won't play via the indexed method).
+      default: "Indexed"
+      selector:
+        select:
+          options:
+            - Indexed
+            - Direct
+
+play_url:
+  name: Play URL
+  description: Push a direct stream URL to a Lithe Audio speaker (HTTP/HTTPS audio).
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    url:
+      name: URL
+      description: Direct audio URL to play.
+      required: true
+      example: "http://192.168.1.100/announcement.mp3"
+      selector:
+        text:
+    title:
+      name: Player title
+      description: Optional friendly title shown on the media player page.
+      required: false
+      example: "Morning announcement"
+      selector:
+        text:
+
+play_favourite:
+  name: Play Favourite
+  description: Play a saved favourite by slot number.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    slot:
+      name: Slot
+      description: Which saved favourite to play.
+      required: true
+      default: 1
+      selector:
+        select:
+          options:
+            - label: "Favourite 1"
+              value: "1"
+            - label: "Favourite 2"
+              value: "2"
+            - label: "Favourite 3"
+              value: "3"
+            - label: "Favourite 4"
+              value: "4"
+            - label: "Favourite 5"
+              value: "5"
+            - label: "Favourite 6"
+              value: "6"
+            - label: "Favourite 7"
+              value: "7"
+            - label: "Favourite 8"
+              value: "8"
+            - label: "Favourite 9"
+              value: "9"
+
+save_favourite:
+  name: Save Current to Favourite
+  description: >-
+    Save the currently-playing track to a favourite slot. Use the heart
+    button in the media player or call this service directly. Only works
+    for streaming sources (Spotify Connect, Airable, etc.) — embedded
+    chimes and Direct URL cues cannot be saved.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    slot:
+      name: Slot
+      description: Favourite slot to save into (1-10).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: box
+
+play_quran_juz:
+  name: Play Quran (Juz)
+  description: >-
+    Stream a specific Juz (1-30) of the Quran to a Lithe Audio speaker.
+    Uses the embedded tannoy flow — pauses current playback, raises
+    volume, plays the Juz audio URL through MB#41 PLAYITEM:DIRECT.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    juz:
+      name: Juz
+      description: Which Juz to play (1-30).
+      required: true
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 30
+          mode: box
+    volume:
+      name: Volume
+      description: Playback volume for this announcement (0-100).
+      required: false
+      default: 70
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+
+play_adhan:
+  name: Play Adhan (Call to Prayer)
+  description: >-
+    Play one of the preset Adhan audio recordings on a Lithe Audio
+    speaker. Uses the tannoy flow (pauses current source, raises volume,
+    plays via Direct URL).
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    preset:
+      name: Adhan Preset
+      description: Which Adhan recording to play.
+      required: true
+      default: "Adhan — Makkah"
+      selector:
+        select:
+          options:
+            - "Adhan — Makkah"
+            - "Adhan — Madinah"
+            - "Adhan — Al-Aqsa"
+            - "Adhan — Egyptian"
+            - "Adhan — Halab (Aleppo)"
+            - "Abdul Basit"
+            - "Abdul Ghaffar"
+            - "Abdul Hakam"
+            - "Al-Hussaini"
+            - "Bakir Bash"
+            - "Hafez"
+            - "Hafiz Murad"
+            - "Minshawi"
+            - "Naghshbandi"
+            - "Saber"
+            - "Sharif Doman"
+            - "Yusuf Islam (Cat Stevens)"
+    volume:
+      name: Volume
+      description: Playback volume (0-100).
+      required: false
+      default: 70
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+
+set_name:
+  name: Set Device Name
+  description: Set the speaker's friendly name (visible in the Lithe app and AirPlay).
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    name:
+      name: Name
+      description: New device name.
+      required: true
+      example: "Living Room"
+      selector:
+        text:
+
+set_dsp_eq:
+  name: Set EQ Preset
+  description: Set the EQ preset on a WiFi PRO 2, WiFi Speaker V3 or iO1.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    preset:
+      name: Preset
+      description: EQ preset name.
+      required: true
+      selector:
+        select:
+          options:
+            - Normal
+            - Acoustic
+            - Jazz
+            - Pop
+            - Hip-Hop
+
+set_dsp_eq_band:
+  name: Set EQ Band
+  description: Set a captured Bass, Mid, or Treble value on a WiFi PRO 2 or WiFi Speaker V3.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    band:
+      name: Band
+      description: EQ band to change.
+      required: true
+      selector:
+        select:
+          options:
+            - Bass
+            - Mid
+            - Treble
+    value:
+      name: Value
+      description: Gain from -5 to +5 dB.
+      required: true
+      selector:
+        number:
+          min: -5
+          max: 5
+          step: 1
+          mode: slider
+
+set_dsp_output:
+  name: Set Speaker Output Mode
+  description: Set mono/stereo/left/right output on a WiFi PRO 2, WiFi Speaker V3 or iO1.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    mode:
+      name: Mode
+      description: Output mode.
+      required: true
+      selector:
+        select:
+          options:
+            - Stereo
+            - Mono
+            - Left
+            - Right
+
+set_dsp_nightmode:
+  name: Set Night Mode
+  description: Enable or disable Night Mode on a WiFi PRO 2 or WiFi Speaker V3.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    enabled:
+      name: Enabled
+      description: True to enable, False to disable.
+      required: true
+      selector:
+        boolean:
+
+set_dsp_balance:
+  name: Set Balance
+  description: Set left/right balance on a WiFi PRO 2, WiFi Speaker V3 or iO1.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    balance:
+      name: Balance
+      description: "Balance value: -6 = full left, 0 = centre, +6 = full right."
+      required: true
+      selector:
+        number:
+          min: -6
+          max: 6
+          step: 1
+          mode: slider
+
+set_dsp_loudness:
+  name: Set Loudness
+  description: Enable or disable Loudness on a WiFi PRO 2 or WiFi Speaker V3.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    enabled:
+      name: Enabled
+      description: True to enable, False to disable.
+      required: true
+      selector:
+        boolean:
+
+bluetooth_pair:
+  name: Enter Bluetooth Pairing Mode
+  description: Put a Lithe Audio speaker into Bluetooth pairing mode.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+
+bluetooth_disconnect:
+  name: Disconnect Bluetooth
+  description: Disconnect any active Bluetooth connection.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+
+reboot:
+  name: Reboot Speaker
+  description: Reboot the speaker (equivalent to a power cycle). Takes ~45 seconds.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+
+play_group:
+  name: Play to Cast Group
+  description: >-
+    Play a URL to a Lithe Audio Cast group (e.g. iO1 Group, IO1 3.0)
+    and optionally synchronise LUCI volume on each member speaker.
+  fields:
+    leader_ip:
+      name: Leader IP
+      description: IP address of any member of the group (the leader works best).
+      required: true
+      example: "192.168.1.38"
+      selector:
+        text:
+    uuid:
+      name: Group UUID
+      description: Cast group UUID. First 8 hex chars are sufficient.
+      required: true
+      example: "b63105f8-3da3-a238-b85f-69bb61416a71"
+      selector:
+        text:
+    url:
+      name: URL
+      description: Direct audio URL to play.
+      required: true
+      example: "http://192.168.1.100/track.mp3"
+      selector:
+        text:
+    content_type:
+      name: Content Type
+      description: MIME type (default audio/mp3).
+      default: "audio/mp3"
+      selector:
+        text:
+    volume:
+      name: Volume
+      description: Optional 0-100 — applied to each member via LUCI.
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+    member_ips:
+      name: Member IPs
+      description: List of speaker IPs in the group (for LUCI volume sync).
+      selector:
+        object:
+
+set_prayer_schedule:
+  name: Set Prayer Schedule
+  description: >-
+    Schedule daily prayer-time announcements using the Aladhan API.
+    Times are fetched at setup and refreshed every day at 00:01.
+  fields:
+    city:
+      name: City
+      description: City name for prayer-time lookup.
+      required: true
+      example: "London"
+      selector:
+        text:
+    country:
+      name: Country
+      description: Country code (ISO).
+      required: true
+      example: "GB"
+      selector:
+        text:
+    method:
+      name: Calculation Method
+      description: "2=ISNA, 3=MWL, 5=Egyptian (see Aladhan docs for full list)."
+      default: 2
+      selector:
+        number:
+          min: 1
+          max: 15
+          mode: box
+    entries:
+      name: Entries
+      description: >-
+        List of prayer entries. Each entry needs either `prayer` (fajr/dhuhr/asr/maghrib/isha/sunrise/sunset/midnight)
+        or `time` ("HH:MM"), plus `speakers` (list of IPs or entity_ids), `url`, `volume`, and `days`
+        (daily/weekdays/weekends/friday/saturday/sunday).
+      required: true
+      selector:
+        object:
+
+# ── Alarms ─────────────────────────────────────────────────────────────────
+
+alarm_create:
+  name: Create Alarm
+  description: >-
+    Create a new alarm that triggers audio playback on one or more
+    Lithe Audio speakers at a scheduled time. Supports one-off, daily,
+    weekly (with day-of-week toggles), and monthly schedules. Audio
+    source can be a preset URL (Adhan/Quran), saved favourite, embedded
+    chime, or custom HTTP URL. Optional volume fade-in over N seconds
+    for gentle wake-ups.
+  fields:
+    name:
+      name: Alarm Name
+      description: Friendly name for the alarm (e.g. "Weekday Wakeup").
+      required: true
+      example: "Weekday Wakeup"
+      selector:
+        text:
+    time:
+      name: Time
+      description: Time of day to fire (24-hour HH:MM).
+      required: true
+      example: "06:30"
+      selector:
+        time:
+    repeat:
+      name: Repeat Mode
+      description: How often the alarm fires.
+      required: true
+      default: "daily"
+      selector:
+        select:
+          options:
+            - label: "One-off (single date)"
+              value: "one_off"
+            - label: "Daily"
+              value: "daily"
+            - label: "Weekly (specific days)"
+              value: "weekly"
+            - label: "Monthly (day of month)"
+              value: "monthly"
+    days:
+      name: Days of Week
+      description: >-
+        For weekly repeat — pick which days to fire. Ignored for other
+        repeat modes.
+      required: false
+      default: ["mon","tue","wed","thu","fri"]
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: "Monday"
+              value: "mon"
+            - label: "Tuesday"
+              value: "tue"
+            - label: "Wednesday"
+              value: "wed"
+            - label: "Thursday"
+              value: "thu"
+            - label: "Friday"
+              value: "fri"
+            - label: "Saturday"
+              value: "sat"
+            - label: "Sunday"
+              value: "sun"
+    day_of_month:
+      name: Day of Month
+      description: For monthly repeat — which day of the month (1-31).
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 31
+          mode: box
+    date:
+      name: Date
+      description: For one-off — the date (YYYY-MM-DD).
+      required: false
+      selector:
+        date:
+    speakers:
+      name: Speakers
+      description: >-
+        List of Lithe Audio speaker IP addresses (or hostnames) to play
+        the alarm on. Multi-room: provide more than one.
+      required: true
+      selector:
+        text:
+          multiple: true
+    source:
+      name: Audio Source
+      description: What to play when the alarm fires.
+      required: true
+      default: "preset"
+      selector:
+        select:
+          options:
+            - label: "Preset URL (Adhan, Quran)"
+              value: "preset"
+            - label: "Saved Favourite (1-9)"
+              value: "favourite"
+            - label: "Embedded Chime"
+              value: "chime"
+            - label: "Custom HTTP URL"
+              value: "url"
+    preset_url:
+      name: Preset URL
+      description: URL of an Adhan/Quran preset audio file (used when source = preset).
+      required: false
+      example: "https://praytimes.org/audio/sunni/Adhan-Makkah.mp3"
+      selector:
+        text:
+    favourite_slot:
+      name: Favourite Slot
+      description: Saved favourite to play (1-9, used when source = favourite).
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 9
+          mode: box
+    chime_slot:
+      name: Chime Slot
+      description: Embedded chime to play (product-dependent, used when source = chime).
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 14
+          mode: box
+    custom_url:
+      name: Custom URL
+      description: Any HTTP/HTTPS audio URL (used when source = url).
+      required: false
+      example: "http://192.168.1.10/wake.mp3"
+      selector:
+        text:
+    volume:
+      name: Volume
+      description: Playback volume (0-100).
+      required: false
+      default: 60
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+    fade_in_seconds:
+      name: Fade-In Duration
+      description: >-
+        Gradually ramp volume from 0 to target over N seconds. Set to 0
+        to start at full volume. 30-60s gives a gentle wake-up.
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 600
+          unit_of_measurement: "seconds"
+          mode: box
+    snooze_minutes:
+      name: Default Snooze Minutes
+      description: How long to delay when snoozed (1-60 minutes).
+      required: false
+      default: 9
+      selector:
+        number:
+          min: 1
+          max: 60
+          mode: box
+    enabled:
+      name: Enabled
+      description: Whether the alarm is active on creation.
+      required: false
+      default: true
+      selector:
+        boolean:
+
+alarm_update:
+  name: Update Alarm
+  description: Modify an existing alarm. Provide its id and any fields to change.
+  fields:
+    id:
+      name: Alarm ID
+      description: The id returned by alarm_create (e.g. "alarm_a3b9c2f1").
+      required: true
+      selector:
+        text:
+    name:
+      name: Alarm Name
+      required: false
+      selector:
+        text:
+    time:
+      name: Time
+      required: false
+      selector:
+        time:
+    enabled:
+      name: Enabled
+      required: false
+      selector:
+        boolean:
+    volume:
+      name: Volume
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+
+alarm_delete:
+  name: Delete Alarm
+  description: Remove an alarm permanently.
+  fields:
+    id:
+      name: Alarm ID
+      required: true
+      selector:
+        text:
+
+alarm_toggle:
+  name: Toggle Alarm
+  description: Enable or disable an alarm without deleting it.
+  fields:
+    id:
+      name: Alarm ID
+      required: true
+      selector:
+        text:
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:
+
+alarm_snooze:
+  name: Snooze Alarm
+  description: >-
+    Stop a currently-firing alarm and reschedule it to fire again after
+    the specified minutes. If minutes is omitted, uses the alarm's
+    default snooze duration.
+  fields:
+    id:
+      name: Alarm ID
+      required: true
+      selector:
+        text:
+    minutes:
+      name: Snooze Minutes
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 60
+          mode: box
+
+alarm_dismiss:
+  name: Dismiss Alarm
+  description: >-
+    Stop a currently-firing alarm without rescheduling. The alarm
+    remains enabled and will fire again at its next scheduled time.
+  fields:
+    id:
+      name: Alarm ID
+      required: true
+      selector:
+        text:
+
+# ── Multi-room Groups ──────────────────────────────────────────────────────
+
+group_create:
+  name: Create Multi-room Group
+  description: >-
+    Create a virtual group media_player entity that controls multiple
+    Lithe speakers as one. After creating, reload the Lithe Audio
+    integration to make the new group entity appear.
+  fields:
+    name:
+      name: Group Name
+      description: Friendly name (used as the entity name).
+      required: true
+      example: "Downstairs"
+      selector:
+        text:
+    members:
+      name: Member Speakers
+      description: List of speaker IP addresses to include in the group.
+      required: true
+      selector:
+        text:
+          multiple: true
+    default_volume:
+      name: Default Volume
+      description: Volume applied when the group is created.
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+
+group_update:
+  name: Update Group
+  description: Modify an existing group. Provide its id and any fields to change.
+  fields:
+    id:
+      name: Group ID
+      required: true
+      selector:
+        text:
+    name:
+      name: Group Name
+      required: false
+      selector:
+        text:
+    members:
+      name: Member Speakers
+      required: false
+      selector:
+        text:
+          multiple: true
+    default_volume:
+      name: Default Volume
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+
+group_delete:
+  name: Delete Group
+  description: Remove a group. Reload the integration to remove the entity.
+  fields:
+    id:
+      name: Group ID
+      required: true
+      selector:
+        text:
+
+# ── Announcements / Broadcast / Doorbell ───────────────────────────────────
+
+announce:
+  name: Announce (TTS or URL)
+  description: >-
+    Speak a TTS message on one or more speakers (or play a URL),
+    automatically ducking and restoring prior playback. If message
+    starts with http:// or https://, it's played as audio; otherwise
+    it's rendered through HA's TTS pipeline.
+  fields:
+    message:
+      name: Message or URL
+      description: Text to speak, or HTTP(S) audio URL to play directly.
+      required: true
+      example: "Dinner is ready in five minutes"
+      selector:
+        text:
+          multiline: true
+    speakers:
+      name: Speakers
+      description: List of speaker IP addresses (default is all connected).
+      required: false
+      selector:
+        text:
+          multiple: true
+    volume:
+      name: Volume
+      description: Announcement volume (0-100). Higher = more attention-grabbing.
+      required: false
+      default: 80
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+    language:
+      name: TTS Language
+      description: Language code for TTS (e.g. 'en', 'en-GB', 'ar').
+      required: false
+      selector:
+        text:
+    tts:
+      name: TTS Service
+      description: >-
+        Which TTS service to use (e.g. 'piper', 'google_translate_say',
+        'cloud_say'). Default: first configured TTS entity.
+      required: false
+      selector:
+        text:
+    wait_seconds:
+      name: Wait Seconds
+      description: How long the announcement plays before resuming prior audio.
+      required: false
+      default: 8
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: "seconds"
+          mode: box
+    duck_resume:
+      name: Resume Previous Playback
+      description: Auto-restore what was playing before. Disable for stop-only announcements.
+      required: false
+      default: true
+      selector:
+        boolean:
+
+broadcast:
+  name: Broadcast (All Speakers)
+  description: >-
+    Announce on every connected Lithe Audio speaker simultaneously.
+    Same as 'announce' but targets every speaker on your network.
+    Useful for whole-home announcements like "Dinner!" or doorbell-wide
+    alerts.
+  fields:
+    message:
+      name: Message or URL
+      required: true
+      example: "Dinner is served"
+      selector:
+        text:
+          multiline: true
+    volume:
+      name: Volume
+      required: false
+      default: 80
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+    language:
+      name: TTS Language
+      required: false
+      selector:
+        text:
+    tts:
+      name: TTS Service
+      required: false
+      selector:
+        text:
+    wait_seconds:
+      name: Wait Seconds
+      required: false
+      default: 8
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: "seconds"
+          mode: box
+
+doorbell:
+  name: Doorbell (Chime + Optional TTS)
+  description: >-
+    Play a chime followed by an optional spoken announcement, ducking
+    and restoring prior playback. Quick reaction time — designed for
+    doorbell/intercom integrations from Reolink, Ring, Aqara, etc.
+  fields:
+    chime:
+      name: Chime Number
+      description: Which built-in chime to play (1-14 depending on model).
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 15
+          mode: box
+    message:
+      name: Optional Spoken Message
+      description: TTS message to play after the chime. Leave blank for chime only.
+      required: false
+      example: "Someone is at the front door"
+      selector:
+        text:
+          multiline: true
+    speakers:
+      name: Speakers
+      description: List of speaker IPs (default is all connected).
+      required: false
+      selector:
+        text:
+          multiple: true
+    volume:
+      name: Volume
+      required: false
+      default: 75
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+    language:
+      name: TTS Language
+      required: false
+      selector:
+        text:
+    tts:
+      name: TTS Service
+      required: false
+      selector:
+        text:
+
+# ── HA-side Local Favourites ───────────────────────────────────────────────
+#
+# These services manage Home Assistant-stored favourites that work for
+# ANY playable URL (including Direct URL streams that the speaker's
+# native MB#70 FAV_SAVE refuses with GENERIC_FAV_SAVE_FAIL).
+
+fav_save:
+  name: Save HA Favourite
+  description: >-
+    Save the currently-playing URL to a local HA-side favourite slot.
+    Works for any source including Direct URL streams. If url is
+    omitted, captures the current playback URL from the target speaker.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    slot:
+      name: Slot
+      description: Slot 1-10. Leave 0 to auto-pick the next free slot.
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 10
+          mode: box
+    name:
+      name: Name
+      description: Friendly name shown in Browse Media (e.g. "BBC Radio 4").
+      required: false
+      selector:
+        text:
+    url:
+      name: URL
+      description: Audio URL to save. If omitted, captures current playback URL.
+      required: false
+      selector:
+        text:
+
+fav_play:
+  name: Play HA Favourite
+  description: Play a saved HA-side favourite by slot number.
+  target:
+    entity:
+      domain: media_player
+      integration: lithe_audio
+  fields:
+    slot:
+      name: Slot
+      required: true
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: box
+
+fav_delete:
+  name: Delete HA Favourite
+  description: Remove a saved HA-side favourite from a slot.
+  fields:
+    slot:
+      name: Slot
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: box
+
+fav_list:
+  name: List HA Favourites
+  description: Returns all 10 favourite slots and their current contents.
+
+# ── Snapshot / Restore (Sonos pattern) ────────────────────────────────────
+
+snapshot:
+  name: Snapshot State
+  description: >-
+    Capture current playback state (volume, source, play state, URL) of
+    selected speakers. Use with `restore` for TTS workflows: snapshot →
+    play announcement → restore.
+  fields:
+    name:
+      name: Snapshot Name
+      description: Optional name for the snapshot (lets multiple coexist). Default is "default".
+      required: false
+      default: "default"
+      selector:
+        text:
+    speakers:
+      name: Speakers
+      description: List of speaker IPs or entity_ids (default is all connected).
+      required: false
+      selector:
+        text:
+          multiple: true
+
+restore:
+  name: Restore State
+  description: Restore a previously-captured snapshot.
+  fields:
+    name:
+      name: Snapshot Name
+      required: false
+      default: "default"
+      selector:
+        text:
+    delete:
+      name: Delete after restore
+      description: If true, the snapshot is removed after restoration (one-shot).
+      required: false
+      default: false
+      selector:
+        boolean:
+
+# ── Sleep Timer (Bluesound pattern) ───────────────────────────────────────
+
+set_sleep_timer:
+  name: Set Sleep Timer
+  description: >-
+    Stop playback on selected speakers after a delay. Optionally fade
+    volume to silent over `fade_seconds` before stopping.
+  fields:
+    speakers:
+      name: Speakers
+      description: List of speaker IPs or entity_ids (default is all connected).
+      required: false
+      selector:
+        text:
+          multiple: true
+    minutes:
+      name: Minutes
+      description: Stop after this many minutes.
+      required: true
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 480
+          unit_of_measurement: minutes
+          mode: box
+    fade_seconds:
+      name: Fade Duration
+      description: Fade volume to 0 over this many seconds before stopping (0 = no fade).
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 600
+          unit_of_measurement: seconds
+          mode: box
+
+clear_sleep_timer:
+  name: Clear Sleep Timer
+  description: Cancel an active sleep timer.
+  fields:
+    speakers:
+      name: Speakers
+      required: false
+      selector:
+        text:
+          multiple: true
+
+# ── Tannoy (PA override, low-level) ───────────────────────────────────────
+
+tannoy:
+  name: Tannoy / PA Override
+  description: >-
+    Low-level announcement primitive: save current state, switch to a
+    URL, then optionally restore. Most users should use lithe_audio.announce
+    instead; this is for advanced workflows that need explicit start/end
+    control (e.g. multi-step announcements).
+  fields:
+    mode:
+      name: Mode
+      description: "'start' to begin override, 'end' to restore."
+      required: true
+      default: "start"
+      selector:
+        select:
+          options:
+            - "start"
+            - "end"
+    message:
+      name: URL
+      description: HTTP(S) audio URL (start mode only).
+      required: false
+      selector:
+        text:
+    title:
+      name: Player title
+      description: Optional friendly title shown while the URL is playing.
+      required: false
+      selector:
+        text:
+    artist:
+      name: Player subtitle
+      description: Optional subtitle shown below the player title.
+      required: false
+      selector:
+        text:
+    volume:
+      name: Volume
+      required: false
+      default: 80
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+    speakers:
+      name: Speakers
+      description: List of speaker IPs or entity_ids.
+      required: true
+      selector:
+        text:
+          multiple: true
