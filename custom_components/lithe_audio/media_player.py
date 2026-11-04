@@ -74,6 +74,7 @@ _CHIME_PREFIX = "lithe_chime://"
 # Browse Media action for the same operation as the heart button.
 _SAVE_FAVOURITE_FOLDER = "lithe_save_favourite"
 _SAVE_FAVOURITE_PREFIX = "lithe_action:save_favourite:"
+_SAVE_FAVOURITE_SOURCE_PREFIX = "♥ Save Current Track — Favourite "
 
 
 async def async_setup_entry(
@@ -327,7 +328,7 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
 
         Sections:
           1. Spotify, No Source, Bluetooth and Aux when supported.
-          2. Save Current Track, using the selected favourite slot.
+          2. Save Current Track choices for each free favourite slot.
           3. Saved favourites — each populated slot shows as
              "♥ Favourite N: <name>" and plays directly when picked.
         """
@@ -342,8 +343,6 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         if not self._supports_favourites:
             return base
 
-        base.append("♥ Save Current Track")
-
         # Favourites — each saved one inline so user can pick directly
         try:
             from .local_favs import get_local_favs
@@ -354,6 +353,10 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
                 if f.get("slot")
             }
             if local_favs:
+                for slot in local_favs.free_slots(set(native_by_slot)):
+                    base.append(
+                        f"{_SAVE_FAVOURITE_SOURCE_PREFIX}{slot} (Free)"
+                    )
                 for fav in local_favs.list_all():
                     slot = int(fav["slot"])
                     native = native_by_slot.get(slot)
@@ -613,9 +616,6 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
             "shuffle":         s.shuffle,
             "repeat":          s.repeat,
             "supports_favourites": self._supports_favourites,
-            "play_on": getattr(s, "active_cast_group", "") or "This speaker",
-            "controlling": getattr(s, "active_cast_group", "") or "This speaker",
-            "volume_control": "Group volume" if self._active_cast_group_entity() else "Speaker volume",
             "active_cast_group": getattr(
                 s, "active_cast_group", ""
             ) or None,
@@ -955,7 +955,9 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
                 )
             return
 
-        if source == "♥ Save Current Track":
+        if source == "♥ Save Current Track" or source.startswith(
+            _SAVE_FAVOURITE_SOURCE_PREFIX
+        ):
             if not self._supports_favourites:
                 return
             from .local_favs import (
@@ -966,7 +968,30 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
             if manager is None:
                 _LOGGER.warning("Cannot save favourite: manager not initialised")
                 return
-            slot = int(getattr(self._client, "_favourite_save_slot", 1) or 1)
+            native_slots = {
+                int(item.get("slot", 0) or 0)
+                for item in (self._client.state.favourites or [])
+                if int(item.get("slot", 0) or 0) > 0
+            }
+            free_slots = manager.free_slots(native_slots)
+            if source == "♥ Save Current Track":
+                # Backwards compatibility for a source list cached by HA.
+                slot = free_slots[0] if free_slots else 0
+            else:
+                try:
+                    slot = int(
+                        source[len(_SAVE_FAVOURITE_SOURCE_PREFIX):]
+                        .split(" ", 1)[0]
+                    )
+                except ValueError:
+                    _LOGGER.warning("Invalid favourite save choice: %s", source)
+                    return
+            if slot not in free_slots:
+                _LOGGER.warning(
+                    "Favourite %s is no longer free; current track was not saved",
+                    slot,
+                )
+                return
             slot = await async_capture_current_favourite(
                 manager, self._client, slot
             )
@@ -1109,6 +1134,17 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
                 slot = int(media_id[len(_SAVE_FAVOURITE_PREFIX):])
             except ValueError:
                 _LOGGER.warning("Invalid favourite save action: %s", media_id)
+                return
+            native_slots = {
+                int(item.get("slot", 0) or 0)
+                for item in (self._client.state.favourites or [])
+                if int(item.get("slot", 0) or 0) > 0
+            }
+            if slot not in manager.free_slots(native_slots):
+                _LOGGER.warning(
+                    "Favourite %s is no longer free; current track was not saved",
+                    slot,
+                )
                 return
             slot = await async_capture_current_favourite(
                 manager, self._client, slot
@@ -1524,7 +1560,7 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         if media_content_id == _FAVOURITE_FOLDER:
             if not self._supports_favourites:
                 raise BrowseError("Favourites are not supported by this model")
-            from .local_favs import MAX_SLOTS, get_local_favs
+            from .local_favs import get_local_favs
             manager = get_local_favs(self.hass)
             local_by_slot = {
                 int(item["slot"]): item
@@ -1585,6 +1621,9 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
                 )
                 for item in (self._client.state.favourites or [])
             }
+            free_slots = (
+                manager.free_slots(set(native_names)) if manager else []
+            )
             return BrowseMedia(
                 title="Save Current Track",
                 media_class=MediaClass.DIRECTORY,
@@ -1596,7 +1635,7 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
                     BrowseMedia(
                         title=(
                             f"{slot}: "
-                            f"{name_overrides.get(slot) or native_names.get(slot) or f'Favourite {slot}'}"
+                            f"{name_overrides.get(slot) or f'Favourite {slot}'} (Free)"
                         ),
                         media_class=MediaClass.MUSIC,
                         media_content_id=f"{_SAVE_FAVOURITE_PREFIX}{slot}",
@@ -1604,7 +1643,7 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
                         can_play=True,
                         can_expand=False,
                     )
-                    for slot in range(1, MAX_SLOTS + 1)
+                    for slot in free_slots
                 ],
                 children_media_class=MediaClass.MUSIC,
             )
@@ -2030,7 +2069,7 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         )
         target = active_group or configured_target
         if target:
-            return choose_exact_spotify_source(sources, [target])
+            return choose_spotify_source(sources, [target])
 
         # The target selector is intentionally hidden from every product.
         # Resolve the destination internally, but only when one Spotify
@@ -2049,11 +2088,16 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         self, spotify_entity_id: str
     ) -> str | None:
         """Refresh Spotify Connect devices before matching the destination."""
-        from .spotify_devices import async_refresh_spotify_devices
-
-        await async_refresh_spotify_devices(
-            self.hass, spotify_entity_id, self._context
-        )
+        try:
+            await self.hass.services.async_call(
+                "homeassistant",
+                "update_entity",
+                {"entity_id": spotify_entity_id},
+                blocking=True,
+                context=self._context,
+            )
+        except Exception as err:
+            _LOGGER.debug("Spotify source refresh failed: %s", err)
         target = self._spotify_target(spotify_entity_id)
         state = self.hass.states.get(spotify_entity_id)
         sources = state.attributes.get("source_list", []) if state else []
@@ -2092,14 +2136,16 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         if target is None:
             state = self.hass.states.get(spotify_entity_id)
             available = state.attributes.get("source_list", []) if state else []
+            configured_target = str(
+                self._entry.options.get(CONF_SPOTIFY_TARGET, "") or ""
+            )
             message = (
-                f"Spotify's freshly refreshed device list does not include the "
-                f"playback destination for {self.name}. "
-                f"Selected group: {self._client.state.active_cast_group or 'none'}. "
-                f"Available devices: {available or 'none'}. "
-                "The device may be offline or not currently exposed to the "
-                "Spotify account connected to Home Assistant. Check its connection "
-                "and retry. No speaker renaming or manual selection is required."
+                "Spotify could not find a Spotify Connect target matching "
+                f"this Lithe speaker. Speaker name: {self.name}. "
+                f"Configured legacy target: "
+                f"{configured_target or 'none'}. Available targets: "
+                f"{available or 'none'}. Rename the Spotify Connect device "
+                "to exactly match the Lithe speaker name, then retry."
             )
             _LOGGER.warning(message)
             await self.hass.services.async_call(
@@ -2141,11 +2187,6 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
             _LOGGER.info(
                 "Spotify playback delegated to %s on target %s: %s",
                 spotify_entity_id, target, spotify_content_id,
-            )
-            await self.hass.services.async_call(
-                "persistent_notification", "dismiss",
-                {"notification_id": f"lithe_spotify_{self._entry.entry_id}"},
-                blocking=False,
             )
             self._client._schedule_metadata_refresh(delays=(0.5, 1.5, 3.0))
         except Exception as err:

@@ -120,18 +120,21 @@ class LitheLocalFavourites:
         await self.async_save()
         self._notify()
 
+    def free_slots(self, occupied_slots: set[int] | None = None) -> list[int]:
+        """Return every slot without local content or native speaker content."""
+        occupied_slots = occupied_slots or set()
+        return [
+            slot
+            for slot in range(1, MAX_SLOTS + 1)
+            if slot not in occupied_slots
+            and not str((self._slots.get(slot) or {}).get("url") or "").strip()
+        ]
+
     def next_free_slot(self, occupied_slots: set[int] | None = None) -> int:
         """Return the lowest free slot (1-10). Wraps to 1 if all full."""
-        occupied_slots = occupied_slots or set()
-        for s in range(1, MAX_SLOTS + 1):
-            # A name-only entry is an alias waiting for content, not a used
-            # favourite. This lets users name slot 1 "Doorbell" first and
-            # then save the next track into that same slot.
-            if (
-                s not in occupied_slots
-                and (s not in self._slots or not self._slots[s].get("url"))
-            ):
-                return s
+        free_slots = self.free_slots(occupied_slots)
+        if free_slots:
+            return free_slots[0]
         return 1  # all full — overwrite slot 1
 
 

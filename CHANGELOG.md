@@ -1,19 +1,32 @@
 # Changelog
 
+## 1.4.107
+
+- Replace the single player-page **Save Current Track** action with one choice
+  for each free favourite slot.
+- Show only free slots in the Media Browser save folder while retaining any
+  user-assigned name on an empty slot.
+- Recheck the selected slot immediately before saving so a stale Home
+  Assistant menu cannot overwrite an existing favourite.
+
 ## 1.4.106
 
-- Refresh the Spotify account's separate device coordinator before matching a speaker. Updating the media player alone could leave its five-minute Connect cache stale.
-- Report refresh failures separately and never use an old list after a failed refresh.
-- Keep automatic name matching and the Play on group selector; no manual Spotify device selector is required.
+- Refresh the Spotify account's separate device coordinator before matching a
+  speaker, and do not publish stale cached devices after a failed refresh.
 - Dismiss previous Spotify destination errors after successful playback.
+
+## 1.4.105
+
+- Expose **Spotify playback device** on Wi-Fi speaker devices and persist
+  explicit mappings when Home Assistant and Spotify names differ.
+- Keep the selected Play on group authoritative, without falling back to a
+  different speaker.
 
 ## 1.4.104
 
-- Add a **Play on** destination selector when an existing Google Cast group is detected.
-- Choose **This speaker** to return to individual playback controls.
-- Group playback, volume and metadata use the selected Cast group; selection alone does not start or transfer music.
-- Keep unavailable selections visible so controls cannot silently fall back to local playback.
-- Discover groups from Cast device identity rather than editable entity names, and distinguish duplicate group names.
+- Add a **Play on** destination selector for existing Google Cast groups.
+- Route playback, volume and metadata through the selected group, with
+  **This speaker** available to return to local playback.
 
 ## 1.4.103
 
