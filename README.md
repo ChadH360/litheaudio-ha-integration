@@ -2,7 +2,7 @@
 
 Direct, local control of Lithe Audio Wi-Fi speakers over the LUCI protocol on port 7777. No cloud, no bridge process, no portal — Home Assistant talks to each speaker directly.
 
-**Latest: 1.4.101** — restores the working LS10 EQ path and carries the app-sniffed Bluetooth MCU command through MB#112 without opening or blocking the EQ raw tunnel.
+**Latest: 1.4.111** — improves source routing and Spotify Connect matching across supported speaker models, and keeps internal hardware-generation names out of customer-facing text and documentation.
 
 ---
 
@@ -27,14 +27,14 @@ Direct, local control of Lithe Audio Wi-Fi speakers over the LUCI protocol on po
 
 ## Supported speakers
 
-| Product | Platform | TLS | Chimes | EQ/DSP | Loudness | Bluetooth |
-|---|---|---|---|---|---|---|
-| WiFi PRO 2 | LS10 | ✅ | 14 | EQ, Output, Balance | On/Off + gain | ✅ |
-| WiFi Speaker V3 | LS10 | ✅ | 14 | EQ, Output, Balance | On/Off | ✅ |
-| iO1 | LS10 | ✅ | 10 | EQ, Output, Balance | — | ✅ |
-| WiFi Speaker V2 | LS9 | — | 0 | — | — | — |
-| WiFi PRO | LS9 | — | 6 | — | — | — |
-| Micro Subwoofer | LS9 | — | 0 | — | — | ✅ |
+| Product | Connection | Chimes | EQ/DSP | Loudness | Bluetooth |
+|---|---|---|---|---|---|
+| WiFi PRO 2 | Secure local | 14 | EQ, Output, Balance | On/Off + gain | ✅ |
+| WiFi Speaker V3 | Secure local | 14 | EQ, Output, Balance | On/Off | ✅ |
+| iO1 | Secure local | 10 | EQ, Output, Balance | — | ✅ |
+| WiFi Speaker V2 | Local | 0 | — | — | — |
+| WiFi PRO | Local | 6 | — | — | — |
+| Micro Subwoofer | Local | 0 | — | — | ✅ |
 
 ---
 

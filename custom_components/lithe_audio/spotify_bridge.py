@@ -128,3 +128,24 @@ def choose_exact_spotify_source(
         if normalize_device_name(source) in normalized_candidates
     ]
     return matches[0] if len(matches) == 1 else None
+
+
+def choose_spotify_source_by_mac(
+    sources: Iterable[str], mac_address: str
+) -> str | None:
+    """Match a factory Spotify name by the final three MAC octets.
+
+    Lithe factory Connect names include this hardware suffix, for example
+    ``WiFi PRO 23503b8`` and ``LitheAudio LWF1V2266D74``.  It remains stable
+    when Home Assistant or the Lithe room name is changed.
+    """
+    mac = re.sub(r"[^a-fA-F0-9]", "", mac_address or "").casefold()
+    if len(mac) < 6:
+        return None
+    suffix = mac[-6:]
+    matches = [
+        source for source in sources
+        if isinstance(source, str)
+        and normalize_device_name(source).endswith(suffix)
+    ]
+    return matches[0] if len(matches) == 1 else None

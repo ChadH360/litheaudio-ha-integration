@@ -49,6 +49,7 @@ from .spotify_bridge import (
     SPOTIFY_CONTENT_PREFIX,
     SPOTIFY_LIBRARY_ITEMS,
     choose_exact_spotify_source,
+    choose_spotify_source_by_mac,
     choose_spotify_source,
     decode_spotify_content,
     encode_spotify_content,
@@ -1414,7 +1415,9 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
                 await asyncio.sleep(3.0)
                 st = self._client.state
                 progress_id = f"lithe_play_progress_{self._entry.entry_id}"
-                if st.source_id == 17 and st.play_state in (1, "Playing"):
+                if st.source_id == 17 and st.play_state in (
+                    1, "Playing", "playing", MediaPlayerState.PLAYING
+                ):
                     # Success — dismiss the progress notification
                     try:
                         await self.hass.services.async_call(
@@ -1430,6 +1433,7 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
                     1:  "AirPlay", 4:  "Spotify Connect", 24: "Google Cast",
                     21: "Deezer",  22: "Tidal",            27: "Roon",
                     28: "Alexa",    9: "TuneIn",            7: "Melon",
+                    25: "External MCU / AUX path",
                 }.get(st.source_id)
                 if blocking_src:
                     msg = (
@@ -2083,7 +2087,16 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
             self._client.state.name or "",
             entry_name,
         )
-        return choose_exact_spotify_source(sources, candidates)
+        exact = choose_exact_spotify_source(sources, candidates)
+        if exact:
+            return exact
+
+        # Lithe's factory Spotify Connect name contains the last three MAC
+        # octets.  This identifies the physical speaker even when its HA room
+        # name and its Connect name are intentionally different.
+        return choose_spotify_source_by_mac(
+            sources, getattr(self._client.state, "mac", "") or ""
+        )
 
     async def _async_spotify_target(
         self, spotify_entity_id: str
@@ -2115,12 +2128,18 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         """Open the LS9 MB10/MB11 window for an external music source."""
         if self._active_cast_group_entity() or self._product not in LS9_PRODUCTS:
             return
+        prepare = getattr(
+            self._client, "async_prepare_internal_playback", None
+        )
+        if prepare is not None:
+            await prepare()
         opener = getattr(
             self._client, "async_open_source_authorization_window", None
         )
         if opener is None:
             raise HomeAssistantError(
-                "This LS9 client cannot authorize a Spotify source change"
+                f"{PRODUCT_NAMES.get(self._product, self._product)} cannot "
+                "authorize the Spotify source change"
             )
         await opener()
 

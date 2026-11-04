@@ -283,7 +283,7 @@ set_name:
 
 set_dsp_eq:
   name: Set EQ Preset
-  description: Set the EQ preset on an LS10 speaker (PRO2, V3, iO1).
+  description: Set the EQ preset on a WiFi PRO 2, WiFi Speaker V3 or iO1.
   target:
     entity:
       domain: media_player
@@ -304,7 +304,7 @@ set_dsp_eq:
 
 set_dsp_eq_band:
   name: Set EQ Band
-  description: Set a captured Bass, Mid, or Treble value on an LS10 speaker.
+  description: Set a captured Bass, Mid, or Treble value on a WiFi PRO 2 or WiFi Speaker V3.
   target:
     entity:
       domain: media_player
@@ -333,7 +333,7 @@ set_dsp_eq_band:
 
 set_dsp_output:
   name: Set Speaker Output Mode
-  description: Set mono/stereo/left/right output on an LS10 speaker.
+  description: Set mono/stereo/left/right output on a WiFi PRO 2, WiFi Speaker V3 or iO1.
   target:
     entity:
       domain: media_player
@@ -353,7 +353,7 @@ set_dsp_output:
 
 set_dsp_nightmode:
   name: Set Night Mode
-  description: Enable or disable Night Mode on an LS10 speaker.
+  description: Enable or disable Night Mode on a WiFi PRO 2 or WiFi Speaker V3.
   target:
     entity:
       domain: media_player
@@ -368,7 +368,7 @@ set_dsp_nightmode:
 
 set_dsp_balance:
   name: Set Balance
-  description: Set left/right balance on an LS10 speaker.
+  description: Set left/right balance on a WiFi PRO 2, WiFi Speaker V3 or iO1.
   target:
     entity:
       domain: media_player
@@ -387,7 +387,7 @@ set_dsp_balance:
 
 set_dsp_loudness:
   name: Set Loudness
-  description: Enable or disable Loudness on an LS10 speaker.
+  description: Enable or disable Loudness on a WiFi PRO 2 or WiFi Speaker V3.
   target:
     entity:
       domain: media_player

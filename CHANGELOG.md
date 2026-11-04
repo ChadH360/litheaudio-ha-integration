@@ -1,14 +1,35 @@
 # Changelog
 
+## 1.4.111
+
+- Remove internal hardware-generation labels from every integration README
+  and include the cleaned README and changelog in the downloadable archive.
+
+## 1.4.110
+
+- Replace internal hardware-generation names in customer-facing setup text,
+  service descriptions, diagnostics and documentation with supported model
+  names.
+
+## 1.4.109
+
+- Match renamed WiFi Speaker V2 and WiFi PRO devices to their factory Spotify
+  Connect names using the stable hardware-address suffix.
+- Release the external MCU audio route before Direct URL, favourites, Spotify
+  and Music Assistant playback on WiFi Speaker V2, WiFi PRO and Micro
+  Subwoofer.
+- Recognise the speaker's lowercase `playing` response during Direct URL
+  playback verification.
+
 ## 1.4.108
 
-- Keep LS9 WiFi PRO and WiFi Speaker V2 source-changing command sockets open
+- Keep WiFi PRO and WiFi Speaker V2 source-changing command sockets open
   until the delayed mailbox 10 request is granted with mailbox 11.
-- Apply the LS9 authorisation path to Direct URL, radio and native favourite
+- Apply the WiFi Speaker V2, WiFi PRO and Micro Subwoofer authorisation path to Direct URL, radio and native favourite
   playback instead of closing after the first command acknowledgement.
-- Extend the LS9 external-source authorisation window for Spotify and Music
+- Extend the WiFi Speaker V2, WiFi PRO and Micro Subwoofer external-source authorisation window for Spotify and Music
   Assistant, closing it immediately after a successful grant.
-- Leave all LS10 playback paths unchanged.
+- Leave all WiFi PRO 2, WiFi Speaker V3 and iO1 playback paths unchanged.
 
 ## 1.4.107
 
@@ -40,7 +61,7 @@
 
 ## 1.4.103
 
-- Start the LS10/iO1 MB#111 DSP listener with the registered LUCI remote ID
+- Start the WiFi PRO 2, WiFi Speaker V3 and iO1 MB#111 DSP listener with the registered LUCI remote ID
   `0xAAAA`. The previous MCU ID `0x0000` was rejected by iO1 firmware with
   `FAILED TO START TCP TUNNEL SERVER`, preventing live startup EQ sync.
 - Keep the first protocol status error visible with the speaker IP, but move
@@ -61,7 +82,7 @@
 
 ## 1.4.101
 
-- Restore the pre-Bluetooth LS10 EQ refresh command sequence after live HA
+- Restore the pre-Bluetooth WiFi PRO 2, WiFi Speaker V3 and iO1 EQ refresh command sequence after live HA
   logs showed repeated `FAILED TO START TCP TUNNEL SERVER` responses.
 - Isolate Bluetooth from EQ: Bluetooth now carries the app-sniffed `20 02`
   setter and `20 01` getter through the existing working MB#112 MCU carrier,
@@ -71,7 +92,7 @@
 
 ## 1.4.100
 
-- Replace the ineffective LS10 Bluetooth MB#209 command with the exact raw
+- Replace the ineffective WiFi PRO 2, WiFi Speaker V3 and iO1 Bluetooth MB#209 command with the exact raw
   HOST-MCU tunnel packets recovered from Lithe app `1.7.5.22`: opcode `0x20`,
   setter field `0x02`, and values `1`/`0` for on/off.
 - Read Bluetooth state with the app's `20 01` getter during startup refresh
@@ -125,7 +146,7 @@
 
 - Stop restoring Pro2, WiFi v3 and iO1 EQ preset/band values from Home
   Assistant recorder history at startup.
-- Require a live LS10 startup report to contain both the EQ preset and EQ
+- Require a live WiFi PRO 2, WiFi Speaker V3 and iO1 startup report to contain both the EQ preset and EQ
   bands before accepting it as a successful EQ synchronisation.
 - Keep EQ entities unavailable when firmware omits live EQ readback, instead
   of showing a stale preset/band combination as though it came from the
@@ -158,17 +179,17 @@
 
 - Remove Cast Group and Spotify Connect Target selectors from every speaker
   model and clean up their existing registered entities during setup.
-- Match the Lithe app's checksummed LS10 full-state request and perform one
+- Match the Lithe app's checksummed WiFi PRO 2, WiFi Speaker V3 and iO1 full-state request and perform one
   bounded live MCU read before entity creation, with background retries when
   the tunnel is not ready. This replaces restored EQ state at startup.
 - Keep the full EQ slider range outside Normal so each thumb reflects its
   actual dB value; writes remain blocked while a fixed preset is selected.
-- Route LS10 Bluetooth MB#209 commands and MB#210 status requests through the
+- Route WiFi PRO 2, WiFi Speaker V3 and iO1 Bluetooth MB#209 commands and MB#210 status requests through the
   standard LUCI application RemoteID instead of the MCU-only route.
 
 ## 1.4.91
 
-- Remove the complete EQ block from the LS9 Micro Subwoofer: profile, gain,
+- Remove the complete EQ block from the Micro Subwoofer: profile, gain,
   crossover, low-pass filter, phase and Save Changes.
 - Use the existing capability cleanup to remove all six previously registered
   subwoofer-control entities after the integration reloads.
@@ -177,17 +198,17 @@
 ## 1.4.90
 
 - Remove Cast Group, Spotify Connect Target and Bluetooth entities from the
-  LS9 WiFi Speaker V2 and WiFi PRO Ceiling Speaker models.
-- Remove already-registered copies of those LS9 entities during integration
+  WiFi Speaker V2 and WiFi PRO models.
+- Remove already-registered copies of those WiFi Speaker V2, WiFi PRO and Micro Subwoofer entities during integration
   setup so they do not remain as unavailable controls after upgrading.
-- Keep these controls available on LS10 products and preserve the Micro
+- Keep these controls available on WiFi PRO 2, WiFi Speaker V3 and iO1 products and preserve the Micro
   Subwoofer's separate capability profile.
 
 ## 1.4.89
 
 - Add a permanent `Favourites` folder to Browse Media, separate from the
   `Save Current Track` destination picker.
-- Show all ten named playback slots even when LS9 firmware does not return its
+- Show all ten named playback slots even when WiFi Speaker V2, WiFi PRO and Micro Subwoofer firmware does not return its
   native favourite list.
 - Play a stored Home Assistant URL when the slot has one, otherwise issue the
   speaker's native favourite-play command for that slot.
@@ -198,42 +219,42 @@
   the discovered/configured speaker name.
 - Clear title, artist, album, artwork, duration and position immediately when
   Direct URL playback starts.
-- Ignore an LS9 MB#42 response when it repeats the exact metadata from the
+- Ignore an WiFi Speaker V2, WiFi PRO and Micro Subwoofer MB#42 response when it repeats the exact metadata from the
   previous Spotify source, preventing old Spotify details and artwork from
   reappearing over an active Direct URL stream.
 
 ## 1.4.87
 
-- Remove the unreliable DSP control block from LS9 WiFi Speaker V2 and WiFi
+- Remove the unreliable DSP control block from WiFi Speaker V2 and WiFi
   PRO Ceiling Speaker devices: EQ preset/bands, balance, speaker output,
   loudness and night mode.
-- Remove existing registered LS9 DSP entities during integration setup so the
+- Remove existing registered WiFi Speaker V2, WiFi PRO and Micro Subwoofer DSP entities during integration setup so the
   retired controls do not remain as unavailable rows after upgrading.
-- Keep LS10 controls and the Micro Subwoofer's dedicated profile, gain,
+- Keep WiFi PRO 2, WiFi Speaker V3 and iO1 controls and the Micro Subwoofer's dedicated profile, gain,
   crossover, phase and low-pass controls unchanged.
 
 ## 1.4.86
 
-- Match the LS9 HOST-MCU packet format generated by Lithe Audio app
+- Match the WiFi Speaker V2, WiFi PRO and Micro Subwoofer HOST-MCU packet format generated by Lithe Audio app
   `LA1.7.5.22`: byte 2 is now the unsigned checksum of the command, field and
-  payload bytes for every LS9 GET and SET request.
+  payload bytes for every WiFi Speaker V2, WiFi PRO and Micro Subwoofer GET and SET request.
 - Apply the checksummed format to V2/PRO EQ, output, loudness and night-mode
   controls, startup readback, and Micro Subwoofer commands without changing
-  the LS10 transport.
-- Accept the LS9 speaker's zero-checksum response format while matching SET
+  the WiFi PRO 2, WiFi Speaker V3 and iO1 transport.
+- Accept the WiFi Speaker V2, WiFi PRO and Micro Subwoofer speaker's zero-checksum response format while matching SET
   acknowledgements structurally, so service calls complete on confirmed MCU
   feedback instead of waiting for the read deadline.
 - Confirm on a live WiFi Speaker V2 that app-exact EQ GET/SET packets change,
-  read back and restore the MCU value. Also confirm that LS9 does not broadcast
+  read back and restore the MCU value. Also confirm that WiFi Speaker V2, WiFi PRO and Micro Subwoofer does not broadcast
   a tunnel change to a second client; an already-open Lithe app settings page
   must be reopened/refreshed to display a change made by Home Assistant.
 
 ## 1.4.85
 
-- Read authoritative LS9 MCU/DSP state before Home Assistant creates entities,
+- Read authoritative WiFi Speaker V2, WiFi PRO and Micro Subwoofer MCU/DSP state before Home Assistant creates entities,
   preventing restored EQ, output, loudness and night-mode values from appearing
   while the slower transactional metadata sweep is still running.
-- Move the remaining LS9 startup metadata sweep to a managed background task so
+- Move the remaining WiFi Speaker V2, WiFi PRO and Micro Subwoofer startup metadata sweep to a managed background task so
   multiple legacy speakers no longer hold Core startup past the integration
   setup warning threshold.
 - Implement Home Assistant's required group-platform state hook and explicitly
@@ -245,22 +266,22 @@
 
 ## 1.4.84
 
-- Verify LS9 DSP behavior against a live WiFi Speaker V2 instead of assuming
-  LS10 response timing. Captured EQ Preset `0x0A`, Loudness `0x0B`, Night Mode
+- Verify WiFi Speaker V2, WiFi PRO and Micro Subwoofer DSP behavior against a live WiFi Speaker V2 instead of assuming
+  WiFi PRO 2, WiFi Speaker V3 and iO1 response timing. Captured EQ Preset `0x0A`, Loudness `0x0B`, Night Mode
   `0x0C`, and Speaker Output `0x0F` SET/GET cycles all changed the MCU and were
   restored successfully.
-- Consume and decode the authoritative response on the same LS9 raw tunnel
+- Consume and decode the authoritative response on the same WiFi Speaker V2, WiFi PRO and Micro Subwoofer raw tunnel
   used for a write. The integration previously discarded this reader and
   closed the connection before processing speaker confirmation.
-- Keep LS9 refresh tunnels open across quiet gaps because V2 full-state
+- Keep WiFi Speaker V2, WiFi PRO and Micro Subwoofer refresh tunnels open across quiet gaps because V2 full-state
   reports are fragmented; later Speaker Output and EQ records are no longer
   lost after the first 250 ms pause.
 
 ## 1.4.83
 
-- Read LS9 EQ Preset, Speaker Output, Loudness, Night Mode, Balance and all
+- Read WiFi Speaker V2, WiFi PRO and Micro Subwoofer EQ Preset, Speaker Output, Loudness, Night Mode, Balance and all
   three EQ bands from the MCU during startup and every coordinator refresh.
-- Follow LS9 `All_informationGET` with the individual getter sequence used by
+- Follow WiFi Speaker V2, WiFi PRO and Micro Subwoofer `All_informationGET` with the individual getter sequence used by
   the Lithe app, covering firmware that returns a partial all-settings report.
 - Retain post-write MCU confirmation so Home Assistant changes are replaced
   by the actual speaker state rather than an optimistic UI value.
@@ -268,9 +289,9 @@
 ## 1.4.82
 
 - Clear title, artist, album, artwork, duration and position immediately when
-  an LS9 speaker changes playback source, preventing Spotify metadata from
+  an WiFi Speaker V2, WiFi PRO and Micro Subwoofer speaker changes playback source, preventing Spotify metadata from
   remaining visible after switching to radio.
-- Request both MB#42 now-playing state and the LS9 `GETUI:PLAY` view after a
+- Request both MB#42 now-playing state and the WiFi Speaker V2, WiFi PRO and Micro Subwoofer `GETUI:PLAY` view after a
   source transition so radio station and track metadata populate promptly.
 
 ## 1.4.81
@@ -278,19 +299,19 @@
 - Remove automatic Spotify Connect name matching. Each speaker now requires an
   explicit `Audio - Spotify Connect Target` selection, preventing playback from
   being routed to a similarly named device.
-- Request a live MCU state report after LS9 EQ writes so audible Treble, Mid,
+- Request a live MCU state report after WiFi Speaker V2, WiFi PRO and Micro Subwoofer EQ writes so audible Treble, Mid,
   Bass, Balance, Output and preset changes are replaced with speaker-confirmed
   values in Home Assistant instead of remaining optimistic local state.
 
 ## 1.4.80
 
 - Use Home Assistant's identifier-specific device-registry lookup when
-  migrating generic LS9 device names, avoiding the deprecation warning added
+  migrating generic WiFi Speaker V2, WiFi PRO and Micro Subwoofer device names, avoiding the deprecation warning added
   by Home Assistant 2026.10 while retaining compatibility with older cores.
 
 ## 1.4.79
 
-- Preserve a discovered LS9 speaker identity such as
+- Preserve a discovered WiFi Speaker V2, WiFi PRO and Micro Subwoofer speaker identity such as
   `LitheAudio LWF1V2266D74` as the Home Assistant device name instead of
   replacing it with the generic model label. Existing generic registry names
   migrate on reload unless the user explicitly renamed the device.
@@ -300,12 +321,12 @@
 
 ## 1.4.78
 
-- Route LS10 Bluetooth MB209 actions and MB210 status reads through MCU
-  RemoteID `00 00`; skip the unavailable legacy LS9 HTTP endpoint on TLS
+- Route WiFi PRO 2, WiFi Speaker V3 and iO1 Bluetooth MB209 actions and MB210 status reads through MCU
+  RemoteID `00 00`; skip the unavailable legacy WiFi Speaker V2, WiFi PRO and Micro Subwoofer HTTP endpoint on TLS
   products.
 - Require MB210 hardware feedback before committing Bluetooth state, so a
   failed command no longer appears successful only inside Home Assistant.
-- Treat an LS10 PRO 2 startup DSP report without loudness-gain subcommand
+- Treat a WiFi PRO 2 startup DSP report without loudness-gain subcommand
   `0x34` as partial and retry instead of retaining the restored dB value.
 - Retain the per-speaker Spotify Connect target mapping introduced in 1.4.77.
 
@@ -321,18 +342,18 @@
 
 ## 1.4.76
 
-- Fix Spotify Connect source changes on LS9 products by keeping a registered
+- Fix Spotify Connect source changes on WiFi Speaker V2, WiFi PRO and Micro Subwoofer products by keeping a registered
   LUCI socket open during transfer and answering MB10 with MB11 on that same
-  socket. LS9 accepts only one TCP client, so the previous second-connection
+  socket. WiFi Speaker V2, WiFi PRO and Micro Subwoofer accepts only one TCP client, so the previous second-connection
   grant could be discarded.
-- Serialize LS9 LUCI transactions to prevent Spotify authorization, state
+- Serialize WiFi Speaker V2, WiFi PRO and Micro Subwoofer LUCI transactions to prevent Spotify authorization, state
   refreshes and DSP writes from competing for the speaker's single socket.
 - Refresh Home Assistant's Spotify entity before matching a Connect target and
   log the available target names for straightforward diagnostics.
-- Resume Spotify after selecting it from an LS9 speaker's source menu. LS10
+- Resume Spotify after selecting it from an WiFi Speaker V2, WiFi PRO and Micro Subwoofer speaker's source menu. WiFi PRO 2, WiFi Speaker V3 and iO1
   behavior is unchanged.
-- Expose Spotify on the LS9 Micro Subwoofer source matrix instead of hiding it
-  while the other LS9 products offered the same Connect workflow.
+- Expose Spotify on the Micro Subwoofer source matrix instead of hiding it
+  while the other WiFi Speaker V2, WiFi PRO and Micro Subwoofer products offered the same Connect workflow.
 
 ## 1.4.75
 
@@ -353,8 +374,8 @@
 - Apply the MB111 raw MCU tunnel transport to `WiFiMicroSubwoofer` as well as
   WiFi Speaker V2 and `WiFiPROCeilingSpeaker`.
 - Send Micro profile, gain, crossover, phase and low-pass writes through the
-  LS9 tunnel and read its complete live DSP report back through that tunnel.
-- Retain the documented RemoteID `0xAAAA` MB112 fallback when an LS9 firmware
+  WiFi Speaker V2, WiFi PRO and Micro Subwoofer tunnel and read its complete live DSP report back through that tunnel.
+- Retain the documented RemoteID `0xAAAA` MB112 fallback when an WiFi Speaker V2, WiFi PRO and Micro Subwoofer firmware
   build cannot create the MB111 listener.
 
 ## 1.4.73
@@ -364,9 +385,9 @@
 - Send WiFi Speaker V2 and `WiFiPROCeilingSpeaker` EQ, balance, output,
   loudness and night-mode commands through the vendor-documented MB111 raw
   MCU tunnel instead of treating network MB112 as the primary command path.
-- Retain a documented RemoteID `0xAAAA` MB112 fallback for early LS9 firmware
+- Retain a documented RemoteID `0xAAAA` MB112 fallback for early WiFi Speaker V2, WiFi PRO and Micro Subwoofer firmware
   that does not expose the tunnel listener.
-- Keep the WiFi Micro Subwoofer's verified direct MCU route and every LS10
+- Keep the WiFi Micro Subwoofer's verified direct MCU route and every WiFi PRO 2, WiFi Speaker V3 and iO1
   model path unchanged.
 
 ## 1.4.72
@@ -377,12 +398,12 @@
 - Retry the non-blocking startup DSP read when the MCU tunnel is not ready on
   its first attempt, allowing Speaker Output and the other DSP controls to
   initialize from the live speaker state rather than restored HA state.
-- Keep the LS9 transport and model-specific controls unchanged.
+- Keep the WiFi Speaker V2, WiFi PRO and Micro Subwoofer transport and model-specific controls unchanged.
 
 ## 1.4.71
 
-- Fix LS9/Micro Subwoofer MB112 EQ writes and live-state requests by routing
-  them to the MCU with RemoteID `0x0000`; LS10 transport remains unchanged.
+- Fix WiFi Speaker V2, WiFi PRO and Micro Subwoofer MB112 EQ writes and live-state requests by routing
+  them to the MCU with RemoteID `0x0000`; WiFi PRO 2, WiFi Speaker V3 and iO1 transport remains unchanged.
 - Stop creating all favourite-name and save-name text entities for
   `WiFiMicroSubwoofer`, and remove stale copies from the entity registry.
 - Remove Alarms and Prayer Schedule from the Micro Subwoofer options menu,
@@ -405,11 +426,11 @@
   (0/180 degrees), low-pass filter and Save Changes controls.
 - Request the complete live Micro DSP state on refresh and decode its MB112
   profile, gain, crossover, phase and low-pass feedback independently from
-  the LS10 speaker EQ protocol.
+  the WiFi PRO 2, WiFi Speaker V3 and iO1 speaker EQ protocol.
 - Make Save Changes re-apply the complete Custom profile atomically from the
   user's perspective; the firmware API has no separate persistence opcode.
 - Show the Micro profiles in the media player's sound-mode control and keep
-  all existing LS10 model behaviour unchanged.
+  all existing WiFi PRO 2, WiFi Speaker V3 and iO1 model behaviour unchanged.
 
 ## 1.4.68
 
@@ -421,12 +442,12 @@
 
 ## 1.4.67
 
-- Fix EQ/DSP writes on the plain-TCP LS9 products
+- Fix EQ/DSP writes on the plain-TCP WiFi Speaker V2, WiFi PRO and Micro Subwoofer products
   `WiFiPROCeilingSpeaker`, `WiFiCeilingSpeakerV2` and
-  `WiFiMicroSubwoofer`: MB112 binary commands now use an LS9 transactional
+  `WiFiMicroSubwoofer`: MB112 binary commands now use an WiFi Speaker V2, WiFi PRO and Micro Subwoofer transactional
   connection and the documented `0xAAAA` route instead of being dropped by
-  the LS10 persistent-writer guard.
-- Keep the TLS/client-certificate LS10 DSP path unchanged.
+  the WiFi PRO 2, WiFi Speaker V3 and iO1 persistent-writer guard.
+- Keep the TLS/client-certificate WiFi PRO 2, WiFi Speaker V3 and iO1 DSP path unchanged.
 
 ## 1.4.66
 
@@ -868,8 +889,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Obtain LS10/PRO 2 signal strength from read-only Cast diagnostics when LUCI
-  MB#151 is unavailable, as documented for LS10/11.
+- Obtain WiFi PRO 2 signal strength from read-only Cast diagnostics when LUCI
+  MB#151 is unavailable, as documented for WiFi PRO 2, WiFi Speaker V3 and iO1.
 - Derive Wi-Fi band from reported frequency or channel and only expose real
   `2.4 GHz`, `5 GHz`, or `6 GHz` values instead of the generic `Wi-Fi` label.
 - Apply favourite name overrides consistently in Browse Media, media-player
@@ -992,7 +1013,7 @@ All notable changes to this project will be documented in this file.
 
 - Restore audible output after unmute with an MCU-routed MB64 wake step followed
   by the saved volume, preventing firmware from discarding an unchanged value.
-- Use RemoteID `0x0000` for audible volume writes on both LS9 and LS10.
+- Use RemoteID `0x0000` for audible volume writes on both WiFi Speaker V2, WiFi PRO and Micro Subwoofer and WiFi PRO 2, WiFi Speaker V3 and iO1.
 - Preserve the last non-zero volume for externally initiated mute states and
   ignore empty MB63 acknowledgements instead of treating them as unmuted.
 - Setting a non-zero volume while muted now explicitly unmutes first.
@@ -1122,7 +1143,7 @@ All notable changes to this project will be documented in this file.
 - Update shuffle/repeat state immediately and fetch MB#42 shortly afterwards
   to confirm the speaker state.
 - Remember the pre-mute level and reapply it via MCU RemoteID `0x0000` after
-  `UNMUTE`, fixing LS10 builds that leave the audible gain closed or at zero.
+  `UNMUTE`, fixing WiFi PRO 2, WiFi Speaker V3 and iO1 builds that leave the audible gain closed or at zero.
 - Request track metadata at 0.15, 0.75, and 1.5 seconds after next/previous or
   an MB#49 rollover, reducing album-art delay at track boundaries.
 
@@ -1136,7 +1157,7 @@ All notable changes to this project will be documented in this file.
 - Use the confirmed `/goform/SetBluetoothmode` HTTP handler for Bluetooth
   service ON/OFF and mirror its web-page state. Pair/disconnect remain LUCI
   MB#209 operations.
-- Query documented RSSI MB#151 through both observed RemoteIDs on LS10 and
+- Query documented RSSI MB#151 through both observed RemoteIDs on WiFi PRO 2, WiFi Speaker V3 and iO1 and
   accept plain, dual-antenna, or labelled dBm responses. Diagnostics now show
   the responding route.
 
@@ -1225,9 +1246,9 @@ All notable changes to this project will be documented in this file.
 # 1.4.2
 
 - Match the working Control4 LUCI transport: lowercase `app_info` JSON
-  registration on LS10/TLS, serialized 100 ms packet spacing, and selectable
+  registration on WiFi PRO 2, WiFi Speaker V3 and iO1/TLS, serialized 100 ms packet spacing, and selectable
   RemoteID values.
-- Send LS10 volume writes with RemoteID `0x0000` so they reach the MCU gain
+- Send WiFi PRO 2, WiFi Speaker V3 and iO1 volume writes with RemoteID `0x0000` so they reach the MCU gain
   path, and send mute/unmute through MB#40.
 - Treat MB#50 as source feedback instead of a source-switch command.
 - Keep chimes on the proven MB#80 `play N` path and treat MB#82 as feedback.

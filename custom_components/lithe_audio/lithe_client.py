@@ -18,7 +18,8 @@ import aiohttp
 from .const import (
     BT_MCU_STATE, DEFAULT_PORT, MB_AUDIOCUE, MB_BLUETOOTH, MB_BROWSE, MB_CHIME,
     MB_DEVICE_INFO, MB_DEVICE_NAME, MB_DSP, MB_FACTORY_RESET, MB_FAVOURITES,
-    MB_FIRMWARE, MB_INTERFACE_IP, MB_MUTE, MB_NETWORK_INFO, MB_NETWORK_STATUS,
+    MB_AUX_INPUT_STOP, MB_FIRMWARE, MB_INTERFACE_IP, MB_MUTE, MB_NETWORK_INFO,
+    MB_NETWORK_STATUS,
     MB_NOW_PLAYING, MB_PLAY_STATE, MB_PLAYBACK_AUTH, MB_PLAYBACK_GRANT,
     MB_POSITION, MB_TUNNEL_START,
     MB_REGISTER, MB_RSSI, MB_SOURCE, MB_TIMEZONE, MB_TRANSPORT, MB_VOLUME,
@@ -1551,7 +1552,7 @@ class LitheClient:
                             }.issubset(response_subcommands)
                         if not eq_state_present:
                             _LOGGER.debug(
-                                "LS10 DSP report from %s omitted EQ preset/bands; "
+                                "Speaker DSP report from %s omitted EQ preset/bands; "
                                 "keeping the last confirmed EQ state and retrying",
                                 self.host,
                             )
@@ -2783,6 +2784,9 @@ class LitheClient:
         """Send a command which may trigger mailbox 10 authorisation."""
         await self._send(0x02, mbid, payload)
 
+    async def async_prepare_internal_playback(self) -> None:
+        """Release any product-specific external audio route before playback."""
+
 
 class LitheClientLS9(LitheClient):
     """
@@ -2920,7 +2924,7 @@ class LitheClientLS9(LitheClient):
                             await writer.drain()
                             grant_seen = True
                             _LOGGER.info(
-                                "LS9 MB#10 source %r granted on active "
+                                "Playback source %r granted on active "
                                 "socket with MB#11=1",
                                 str(r_payload).strip(),
                             )
@@ -2939,7 +2943,7 @@ class LitheClientLS9(LitheClient):
             except Exception:
                 pass
         except Exception as e:
-            _LOGGER.debug("LS9 transact %s MB#%d: %s", self.host, mbid, e)
+            _LOGGER.debug("Speaker transaction %s MB#%d: %s", self.host, mbid, e)
         return responses
 
     async def async_open_source_authorization_window(
@@ -2968,12 +2972,12 @@ class LitheClientLS9(LitheClient):
         except asyncio.TimeoutError as err:
             self._source_auth_task.cancel()
             raise ConnectionError(
-                f"Could not open LS9 Spotify authorization window on "
+                f"Could not open Spotify authorization window on "
                 f"{self.host}"
             ) from err
         if self._source_auth_error is not None:
             raise ConnectionError(
-                f"Could not open LS9 Spotify authorization window on "
+                f"Could not open Spotify authorization window on "
                 f"{self.host}: {self._source_auth_error}"
             ) from self._source_auth_error
 
@@ -3029,7 +3033,7 @@ class LitheClientLS9(LitheClient):
                             )
                             await writer.drain()
                             _LOGGER.info(
-                                "LS9 Spotify source %r authorized with "
+                                "Spotify source %r authorized with "
                                 "MB#11=1 on the listening socket",
                                 r_payload.strip(),
                             )
@@ -3043,7 +3047,7 @@ class LitheClientLS9(LitheClient):
             if not ready.is_set():
                 ready.set()
             _LOGGER.warning(
-                "LS9 Spotify authorization listener failed on %s: %s",
+                "Spotify authorization listener failed on %s: %s",
                 self.host,
                 err,
             )
@@ -3071,7 +3075,7 @@ class LitheClientLS9(LitheClient):
         )
         payload = self._build_tunnel_packet(sub_mb, field, byte_val)
         _LOGGER.info(
-            "TX LS9 DSP tunnel sub=0x%02x field=0x%02x val=%d: %s",
+            "TX speaker DSP tunnel sub=0x%02x field=0x%02x val=%d: %s",
             sub_mb,
             field,
             value,
@@ -3119,7 +3123,7 @@ class LitheClientLS9(LitheClient):
             # not create the MB111 listener. Keep that documented route as a
             # fallback, using the legacy 0xAAAA RemoteID from the LUCI spec.
             _LOGGER.debug(
-                "LS9 DSP tunnel unavailable; using MB112 fallback: %s", err
+                "Speaker DSP tunnel unavailable; using MB112 fallback: %s", err
             )
             await self.async_transact(
                 MB_DSP,
@@ -3221,7 +3225,7 @@ class LitheClientLS9(LitheClient):
                 )
                 return self.state.dsp_feedback_revision > revision
         except Exception as err:
-            _LOGGER.debug("LS9 DSP live readback unavailable: %s", err)
+            _LOGGER.debug("Speaker DSP live readback unavailable: %s", err)
             return False
         finally:
             if tunnel_writer is not None:
@@ -3320,10 +3324,24 @@ class LitheClientLS9(LitheClient):
         await self.async_transact(mbid, payload, cmd_type, remote_id)
 
     async def _send_source_change(self, mbid: int, payload: str) -> None:
-        """Keep the LS9 command socket alive long enough to grant MB#10."""
+        """Release the MCU route, then keep MB#10 authorisation alive."""
+        await self.async_prepare_internal_playback()
         await self.async_transact(
             mbid, payload, 0x02, 0xAAAA, auth_wait=8.0
         )
+
+    async def async_prepare_internal_playback(self) -> None:
+        """Stop the LS9 external HOST-MCU path before Libre playback.
+
+        Source 25 is audio controlled by the product MCU.  The working Lithe
+        LS9 driver releases that path with MB#96 before network playback; if it
+        is left active LUCI can report playing while the amplifier stays on
+        the external route.
+        """
+        await self.async_transact(
+            MB_AUX_INPUT_STOP, "", 0x02, 0xAAAA
+        )
+        await asyncio.sleep(0.1)
 
     async def async_connect(self) -> None:
         """Prime live MCU state, then fetch slower LUCI metadata in background.
@@ -3356,7 +3374,7 @@ class LitheClientLS9(LitheClient):
             raise
         except Exception as err:
             _LOGGER.warning(
-                "Deferred LS9 startup refresh failed on %s: %s",
+                "Deferred speaker startup refresh failed on %s: %s",
                 self.host,
                 err,
             )

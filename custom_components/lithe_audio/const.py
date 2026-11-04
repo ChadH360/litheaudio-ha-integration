@@ -104,6 +104,7 @@ SOURCES = {
     22: "Tidal",
     23: "Favourites",
     24: "Google Cast",
+    25: "External MCU",
     27: "Roon",
     28: "Alexa",
     30: "Airable",
@@ -146,6 +147,8 @@ MB_AUDIOCUE       = 82   # NEW: Audiocue lifecycle notifications (newer firmware
                           #   "FAILURE" / "NI"  — slot empty or playback failed
 MB_DEVICE_NAME    = 90
 MB_NETWORK_INFO   = 91
+MB_AUX_INPUT_START = 95
+MB_AUX_INPUT_STOP  = 96
 MB_DSP            = 112
 MB_TUNNEL_START   = 111
 MB_REBOOT_REQ     = 114   # Reboot Request (was incorrectly 37)

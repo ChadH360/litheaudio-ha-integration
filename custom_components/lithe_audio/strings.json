@@ -17,7 +17,7 @@
       },
       "manual": {
         "title": "Enter speaker details",
-        "description": "If you know the speaker's IP address, enter it below. Pick the matching model — TLS is enabled automatically for LS10 speakers (PRO 2, V3, iO1) using a built-in certificate.",
+        "description": "If you know the speaker's IP address, enter it below. Pick the matching model. Secure communication is configured automatically for WiFi PRO 2, WiFi Speaker V3 and iO1 using a built-in certificate.",
         "data": {
           "product": "Speaker model",
           "host": "IP address",
