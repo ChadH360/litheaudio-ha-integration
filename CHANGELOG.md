@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.112
+
+- Match one unambiguous factory Spotify Connect target by speaker model when
+  room-name and hardware-address matching are unavailable.
+- Publish volume changes immediately and suppress stale feedback briefly so
+  the Home Assistant volume slider does not jump backwards during a drag.
+
 ## 1.4.111
 
 - Remove internal hardware-generation labels from every integration README

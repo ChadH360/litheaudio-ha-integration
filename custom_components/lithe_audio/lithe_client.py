@@ -213,6 +213,8 @@ class LitheClient:
         self._dsp_initial_refresh_task: Optional[asyncio.Task] = None
         self._dsp_readback_task: Optional[asyncio.Task] = None
         self._last_nonzero_volume: int = self.state.volume
+        self._pending_volume_target: int | None = None
+        self._pending_volume_until: float = 0.0
         # Serialize Bluetooth changes and retain their target while the
         # speaker reports the resulting source through MB#50.
         self._bluetooth_lock = asyncio.Lock()
@@ -534,16 +536,21 @@ class LitheClient:
         level = max(0, min(100, level))
         if level > 0:
             self._last_nonzero_volume = level
+        # Publish the requested value before network I/O so a slider drag is
+        # immediate. Ignore delayed feedback for the previous level briefly;
+        # accept the new value as soon as the speaker confirms it.
+        self._pending_volume_target = level
+        self._pending_volume_until = time.monotonic() + 2.5
+        self.state.volume = level
+        self.state.muted = level == 0
+        self.state.mute_state_known = True
+        self._notify()
         await self._send(
             0x02,
             MB_VOLUME,
             str(level),
             remote_id=0x0000,
         )
-        self.state.volume = level
-        self.state.muted = level == 0
-        self.state.mute_state_known = True
-        self._notify()
 
     async def async_mute(self, mute: bool) -> None:
         """Mute with volume zero and restore the previous level on unmute."""
@@ -1913,6 +1920,21 @@ class LitheClient:
             except ValueError:
                 pass
             else:
+                if self._pending_volume_target is not None:
+                    if volume == self._pending_volume_target:
+                        self._pending_volume_target = None
+                        self._pending_volume_until = 0.0
+                    elif time.monotonic() < self._pending_volume_until:
+                        _LOGGER.debug(
+                            "Ignoring stale volume feedback %d while waiting "
+                            "for %d",
+                            volume,
+                            self._pending_volume_target,
+                        )
+                        return
+                    else:
+                        self._pending_volume_target = None
+                        self._pending_volume_until = 0.0
                 self.state.volume = volume
                 if volume > 0:
                     self._last_nonzero_volume = volume

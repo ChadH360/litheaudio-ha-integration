@@ -149,3 +149,29 @@ def choose_spotify_source_by_mac(
         and normalize_device_name(source).endswith(suffix)
     ]
     return matches[0] if len(matches) == 1 else None
+
+
+def choose_spotify_source_by_product(
+    sources: Iterable[str], product: str
+) -> str | None:
+    """Choose one unambiguous factory Connect target for a model family."""
+    patterns = {
+        "wifipro": (r"^wifipro",),
+        "wifiv2": (r"^litheaudiolwf1v2", r"^wifispeakerv2", r"^wifiv2"),
+        "micro": (r"^litheaudiomsw", r"^microsubwoofer"),
+        "wifipro2": (r"^wifipro2",),
+        "wifiv3": (r"^wifiv3", r"^wifispeakerv3"),
+        "io1": (r"^io1",),
+    }.get(str(product or "").casefold(), ())
+    if not patterns:
+        return None
+
+    matches = [
+        source for source in sources
+        if isinstance(source, str)
+        and any(
+            re.search(pattern, normalize_device_name(source))
+            for pattern in patterns
+        )
+    ]
+    return matches[0] if len(matches) == 1 else None

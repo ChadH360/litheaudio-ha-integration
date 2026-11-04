@@ -50,6 +50,7 @@ from .spotify_bridge import (
     SPOTIFY_LIBRARY_ITEMS,
     choose_exact_spotify_source,
     choose_spotify_source_by_mac,
+    choose_spotify_source_by_product,
     choose_spotify_source,
     decode_spotify_content,
     encode_spotify_content,
@@ -636,7 +637,7 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
             "volume_set", {"volume_level": volume}
         ):
             return
-        await self._client.async_set_volume(int(volume * 100))
+        await self._client.async_set_volume(round(volume * 100))
 
     async def async_mute_volume(self, mute: bool) -> None:
         if await self._async_cast_group_call(
@@ -2094,9 +2095,17 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         # Lithe's factory Spotify Connect name contains the last three MAC
         # octets.  This identifies the physical speaker even when its HA room
         # name and its Connect name are intentionally different.
-        return choose_spotify_source_by_mac(
+        hardware_match = choose_spotify_source_by_mac(
             sources, getattr(self._client.state, "mac", "") or ""
         )
+        if hardware_match:
+            return hardware_match
+
+        # Some WiFi PRO firmware exposes a factory Spotify name whose suffix
+        # is not derived from either MAC reported by LUCI. Use it only when
+        # exactly one target belongs to this model family; ambiguity must fail
+        # closed rather than sending playback to a different room.
+        return choose_spotify_source_by_product(sources, self._product)
 
     async def _async_spotify_target(
         self, spotify_entity_id: str
