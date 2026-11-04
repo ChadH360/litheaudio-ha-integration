@@ -187,9 +187,17 @@
         "title": "Lithe Audio — Configure",
         "description": "Choose what to configure for this speaker.",
         "menu_options": {
+          "spotify": "Spotify playback target",
           "prayer_general": "Prayer Scheduler — General settings",
           "prayer_entries": "Prayer Scheduler — Per-prayer URLs & volumes",
           "prayer_disable": "Disable Prayer Scheduler"
+        }
+      },
+      "spotify": {
+        "title": "Spotify playback target",
+        "description": "Select the exact Spotify Connect device that belongs to this speaker. This mapping prevents playback being sent to another room.",
+        "data": {
+          "target": "Spotify Connect device"
         }
       },
       "prayer_general": {

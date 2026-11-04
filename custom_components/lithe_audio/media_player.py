@@ -50,7 +50,6 @@ from .spotify_bridge import (
     SPOTIFY_LIBRARY_ITEMS,
     choose_exact_spotify_source,
     choose_spotify_source_by_mac,
-    choose_spotify_source_by_product,
     choose_spotify_source,
     decode_spotify_content,
     encode_spotify_content,
@@ -2101,11 +2100,7 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         if hardware_match:
             return hardware_match
 
-        # Some WiFi PRO firmware exposes a factory Spotify name whose suffix
-        # is not derived from either MAC reported by LUCI. Use it only when
-        # exactly one target belongs to this model family; ambiguity must fail
-        # closed rather than sending playback to a different room.
-        return choose_spotify_source_by_product(sources, self._product)
+        return None
 
     async def _async_spotify_target(
         self, spotify_entity_id: str
@@ -2171,10 +2166,11 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
             message = (
                 "Spotify could not find a Spotify Connect target matching "
                 f"this Lithe speaker. Speaker name: {self.name}. "
-                f"Configured legacy target: "
+                f"Configured target: "
                 f"{configured_target or 'none'}. Available targets: "
-                f"{available or 'none'}. Rename the Spotify Connect device "
-                "to exactly match the Lithe speaker name, then retry."
+                f"{available or 'none'}. Open this speaker's integration "
+                "Configure menu and select its exact Spotify playback "
+                "target, then retry."
             )
             _LOGGER.warning(message)
             await self.hass.services.async_call(

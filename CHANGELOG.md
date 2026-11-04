@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.113
+
+- Remove unsafe model-family Spotify matching that could route two identical
+  speaker models to the wrong room.
+- Add an exact per-speaker Spotify playback target under the integration's
+  Configure menu. Missing or stale mappings now fail safely.
+
 ## 1.4.112
 
 - Match one unambiguous factory Spotify Connect target by speaker model when

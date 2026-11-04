@@ -17,14 +17,17 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.components.media_player import DOMAIN as MEDIA_PLAYER_DOMAIN
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 from homeassistant.util import dt as dt_util
 
 from .const import (
     BUNDLED_CERT_KEY, BUNDLED_CERT_PEM,
-    CONF_CERT_PATH, CONF_KEY_PATH, CONF_PRODUCT, CONF_USE_TLS,
+    CONF_CERT_PATH, CONF_KEY_PATH, CONF_PRODUCT, CONF_SPOTIFY_TARGET,
+    CONF_USE_TLS,
     DATA_COORDINATOR, DEFAULT_PORT, DOMAIN, LS10_PRODUCTS, LS9_PRODUCTS,
     MAX_CHIME_SLOT,
     PRODUCT_NAMES,
@@ -353,6 +356,7 @@ class LitheAudioOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         product_caps = caps(self._entry.data[CONF_PRODUCT])
         menu_options = {
+            "spotify": "Spotify playback target",
             "groups":  "🔊  Multi-room Groups",
             "logging": "🐞  Debug logging",
         }
@@ -365,6 +369,56 @@ class LitheAudioOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_menu(
             step_id="init",
             menu_options=menu_options,
+        )
+
+    def _spotify_targets(self) -> list[str]:
+        """Return the current Spotify Connect device names from HA."""
+        registry = er.async_get(self.hass)
+        targets: set[str] = set()
+        for entry in registry.entities.values():
+            if (
+                entry.domain != MEDIA_PLAYER_DOMAIN
+                or entry.platform != "spotify"
+                or entry.disabled_by is not None
+            ):
+                continue
+            state = self.hass.states.get(entry.entity_id)
+            if state is None:
+                continue
+            targets.update(
+                source.strip()
+                for source in state.attributes.get("source_list", [])
+                if isinstance(source, str) and source.strip()
+            )
+        return sorted(targets, key=str.casefold)
+
+    async def async_step_spotify(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Map this speaker to one exact Spotify Connect destination."""
+        targets = self._spotify_targets()
+        current = str(self._draft.get(CONF_SPOTIFY_TARGET, "") or "")
+        if current and current not in targets:
+            targets.append(current)
+            targets.sort(key=str.casefold)
+
+        unset = "__not_configured__"
+        choices = {unset: "Not configured", **{name: name for name in targets}}
+        if user_input is not None:
+            selected = str(user_input.get("target", unset))
+            if selected == unset:
+                self._draft.pop(CONF_SPOTIFY_TARGET, None)
+            elif selected in targets:
+                self._draft[CONF_SPOTIFY_TARGET] = selected
+            return self.async_create_entry(title="", data=self._draft)
+
+        return self.async_show_form(
+            step_id="spotify",
+            data_schema=vol.Schema({
+                vol.Required(
+                    "target", default=current if current in targets else unset
+                ): vol.In(choices),
+            }),
         )
 
     # ── Groups — list existing groups + "Add new" ──────────────────────
