@@ -1105,6 +1105,7 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
                 return
             if ma_content_id is None:
                 return
+            await self._async_prepare_spotify_transfer()
             await self.hass.services.async_call(
                 MEDIA_PLAYER_DOMAIN,
                 "play_media",
@@ -2111,7 +2112,7 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         return target
 
     async def _async_prepare_spotify_transfer(self) -> None:
-        """Open the LS9 MB10/MB11 authorization window when required."""
+        """Open the LS9 MB10/MB11 window for an external music source."""
         if self._active_cast_group_entity() or self._product not in LS9_PRODUCTS:
             return
         opener = getattr(

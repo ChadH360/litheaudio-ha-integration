@@ -703,7 +703,9 @@ class LitheClient:
         ).strip()
         self.state.display_artist = str(artist or "Direct URL").strip()
         self._notify()
-        await self._send(0x02, MB_BROWSE, f"PLAYITEM:DIRECT:{url}")
+        await self._send_source_change(
+            MB_BROWSE, f"PLAYITEM:DIRECT:{url}"
+        )
         # Trigger several metadata refreshes — first immediate (helps if
         # the speaker is still on the old source), then after a delay
         # (gives MB#10/MB#11 auth flow time to complete and source to
@@ -724,7 +726,9 @@ class LitheClient:
         """Play a saved favourite by slot (MB#70)."""
         if not self.supports_favourites:
             return
-        await self._send(0x02, MB_FAVOURITES, f"FAV_PLAY:{int(slot)}")
+        await self._send_source_change(
+            MB_FAVOURITES, f"FAV_PLAY:{int(slot)}"
+        )
 
     async def async_save_favourite(self, slot: int) -> None:
         """Save the currently-playing entry to a favourite slot (MB#70).
@@ -2775,6 +2779,10 @@ class LitheClient:
                 self._build_packet(cmd_type, mbid, payload, remote_id)
             )
 
+    async def _send_source_change(self, mbid: int, payload: str) -> None:
+        """Send a command which may trigger mailbox 10 authorisation."""
+        await self._send(0x02, mbid, payload)
+
 
 class LitheClientLS9(LitheClient):
     """
@@ -2825,11 +2833,12 @@ class LitheClientLS9(LitheClient):
         payload: str | bytes,
         cmd_type: int = 0x02,
         remote_id: int = 0xAAAA,
+        auth_wait: float = 0.0,
     ) -> list[tuple[int, str]]:
         """Connect, send one command, collect responses, disconnect."""
         async with self._ls9_transaction_lock:
             return await self._async_transact_unlocked(
-                mbid, payload, cmd_type, remote_id
+                mbid, payload, cmd_type, remote_id, auth_wait
             )
 
     async def _async_transact_unlocked(
@@ -2838,6 +2847,7 @@ class LitheClientLS9(LitheClient):
         payload: str | bytes,
         cmd_type: int = 0x02,
         remote_id: int = 0xAAAA,
+        auth_wait: float = 0.0,
     ) -> list[tuple[int, str]]:
         """Run one LS9 transaction while the connection lock is held."""
         responses: list[tuple[int, str]] = []
@@ -2866,9 +2876,12 @@ class LitheClientLS9(LitheClient):
             writer.write(packet)
             await writer.drain()
 
-            # Read responses for up to 1.5s
+            # Ordinary requests finish quickly. Source-changing requests stay
+            # registered until the delayed MB#10 arrives; closing after the
+            # first acknowledgement makes LS9 deny playback silently.
             buf = b""
-            deadline = asyncio.get_event_loop().time() + 1.5
+            grant_seen = False
+            deadline = asyncio.get_event_loop().time() + max(1.5, auth_wait)
             while asyncio.get_event_loop().time() < deadline:
                 try:
                     chunk = await asyncio.wait_for(reader.read(4096), timeout=0.25)
@@ -2905,6 +2918,7 @@ class LitheClientLS9(LitheClient):
                                 )
                             )
                             await writer.drain()
+                            grant_seen = True
                             _LOGGER.info(
                                 "LS9 MB#10 source %r granted on active "
                                 "socket with MB#11=1",
@@ -2917,7 +2931,7 @@ class LitheClientLS9(LitheClient):
                         if r_mbid != MB_PLAYBACK_AUTH:
                             responses.append((r_mbid, r_payload))
                 except asyncio.TimeoutError:
-                    if responses:
+                    if grant_seen or (responses and auth_wait <= 0):
                         break
             writer.close()
             try:
@@ -2929,7 +2943,7 @@ class LitheClientLS9(LitheClient):
         return responses
 
     async def async_open_source_authorization_window(
-        self, duration: float = 8.0
+        self, duration: float = 30.0
     ) -> None:
         """Listen briefly for an externally initiated Spotify source change.
 
@@ -3019,6 +3033,7 @@ class LitheClientLS9(LitheClient):
                                 "MB#11=1 on the listening socket",
                                 r_payload.strip(),
                             )
+                            return
                         else:
                             self._handle_push(r_mbid, r_payload)
         except asyncio.CancelledError:
@@ -3303,6 +3318,12 @@ class LitheClientLS9(LitheClient):
         remote_id: int = 0xAAAA,
     ) -> None:
         await self.async_transact(mbid, payload, cmd_type, remote_id)
+
+    async def _send_source_change(self, mbid: int, payload: str) -> None:
+        """Keep the LS9 command socket alive long enough to grant MB#10."""
+        await self.async_transact(
+            mbid, payload, 0x02, 0xAAAA, auth_wait=8.0
+        )
 
     async def async_connect(self) -> None:
         """Prime live MCU state, then fetch slower LUCI metadata in background.

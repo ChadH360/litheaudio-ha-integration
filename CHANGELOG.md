@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.108
+
+- Keep LS9 WiFi PRO and WiFi Speaker V2 source-changing command sockets open
+  until the delayed mailbox 10 request is granted with mailbox 11.
+- Apply the LS9 authorisation path to Direct URL, radio and native favourite
+  playback instead of closing after the first command acknowledgement.
+- Extend the LS9 external-source authorisation window for Spotify and Music
+  Assistant, closing it immediately after a successful grant.
+- Leave all LS10 playback paths unchanged.
+
 ## 1.4.107
 
 - Replace the single player-page **Save Current Track** action with one choice
