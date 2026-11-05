@@ -215,6 +215,8 @@ class LitheClient:
         self._last_nonzero_volume: int = self.state.volume
         self._pending_volume_target: int | None = None
         self._pending_volume_until: float = 0.0
+        self._queued_volume_target: int | None = None
+        self._volume_write_lock = asyncio.Lock()
         # Serialize Bluetooth changes and retain their target while the
         # speaker reports the resulting source through MB#50.
         self._bluetooth_lock = asyncio.Lock()
@@ -537,20 +539,29 @@ class LitheClient:
         if level > 0:
             self._last_nonzero_volume = level
         # Publish the requested value before network I/O so a slider drag is
-        # immediate. Ignore delayed feedback for the previous level briefly;
-        # accept the new value as soon as the speaker confirms it.
+        # immediate. Keep the newest request queued while an earlier write is
+        # in flight; this prevents a drag from sending every intermediate
+        # value through slower transactional speakers.
         self._pending_volume_target = level
-        self._pending_volume_until = time.monotonic() + 2.5
+        self._pending_volume_until = time.monotonic() + 4.0
+        self._queued_volume_target = level
         self.state.volume = level
         self.state.muted = level == 0
         self.state.mute_state_known = True
         self._notify()
-        await self._send(
-            0x02,
-            MB_VOLUME,
-            str(level),
-            remote_id=0x0000,
-        )
+        if self._volume_write_lock.locked():
+            return
+
+        async with self._volume_write_lock:
+            while self._queued_volume_target is not None:
+                target = self._queued_volume_target
+                self._queued_volume_target = None
+                await self._send(
+                    0x02,
+                    MB_VOLUME,
+                    str(target),
+                    remote_id=0x0000,
+                )
 
     async def async_mute(self, mute: bool) -> None:
         """Mute with volume zero and restore the previous level on unmute."""
@@ -1922,8 +1933,11 @@ class LitheClient:
             else:
                 if self._pending_volume_target is not None:
                     if volume == self._pending_volume_target:
-                        self._pending_volume_target = None
-                        self._pending_volume_until = 0.0
+                        # Confirmation is authoritative, but keep the guard
+                        # active until its settling window expires. Some
+                        # speakers deliver an older queued volume after the
+                        # newest confirmation.
+                        pass
                     elif time.monotonic() < self._pending_volume_until:
                         _LOGGER.debug(
                             "Ignoring stale volume feedback %d while waiting "

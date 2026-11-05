@@ -2,7 +2,7 @@
 
 Direct, local control of Lithe Audio Wi-Fi speakers over the LUCI protocol on port 7777. No cloud, no bridge process, no portal — Home Assistant talks to each speaker directly.
 
-**Latest: 1.4.113** — uses an explicit per-speaker Spotify playback target so audio can never be guessed into the wrong room, while retaining smooth volume feedback.
+**Latest: 1.4.114** — starts Spotify faster when the correct target is already available and keeps rapid volume changes smooth and stable.
 
 ---
 
@@ -61,17 +61,38 @@ After installing, your Lithe speakers appear in **Settings → Devices & Service
 
 1. Add Home Assistant's official **Spotify** integration and sign in with a
    Spotify Premium account.
-2. Make the Lithe speaker visible in Spotify Connect. If it is not listed yet,
-   open Spotify once and select that speaker.
-3. Open the Lithe media player, choose **Browse media**, then open the
+2. Start with the Spotify Web Player as the normal playback device. The Lithe
+   integration refreshes Spotify's device list and automatically uses an exact
+   matching speaker when Spotify has published one.
+3. Open the Lithe speaker in **Settings -> Devices & services -> Lithe Audio ->
+   Configure -> Spotify playback target**. If the correct speaker is listed,
+   select it to save the destination for that speaker.
+4. If the speaker is not listed, use the Spotify mobile or desktop app. The
+   Spotify app discovers local speakers differently from the Web Player:
+   play any track, select the missing Lithe speaker in **Connect to a device**,
+   and wait until playback starts. This wakes the speaker and publishes it to
+   Spotify's playback-device list.
+5. Return to Home Assistant, reopen **Spotify playback target**, and select the
+   speaker that has now appeared. Do not select a different speaker merely
+   because it has a similar name.
+6. Open the Lithe media player, choose **Browse media**, then open the
    **Spotify** account folder.
-4. Selecting an album, playlist, episode, or track transfers the Spotify
+7. Selecting an album, playlist, episode, or track transfers the Spotify
    session to the matching Lithe speaker and starts playback.
+
+The Web Player can show previously registered or active Spotify Connect
+devices while omitting an idle speaker that the mobile app can still discover
+locally. If automatic matching cannot find the speaker, Spotify remains on the
+Web Player and the integration does not guess another destination. Wake the
+missing speaker from the Spotify app, then save it under **Spotify playback
+target** as described above. The same wake-up may be needed again if Spotify
+removes an idle speaker from its available-device list.
 
 Spotify credentials remain entirely in the official Spotify integration. The
 Lithe integration only delegates browse and playback actions to its media
-player entity. The Spotify Connect device name should match the Lithe speaker
-name; ambiguous names are rejected to avoid playing in the wrong room.
+player entity. The integration tries an exact speaker-name match first and
+uses the saved **Spotify playback target** when configured. Ambiguous names are
+rejected to avoid playing in the wrong room.
 
 ### Music Assistant library
 

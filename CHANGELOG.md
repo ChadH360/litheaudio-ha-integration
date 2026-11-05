@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.114
+
+- Start Spotify playback immediately from an already available exact target
+  instead of waiting for a redundant cloud device refresh.
+- Skip the speaker source-authorisation window when Spotify is already playing
+  on the requested speaker, preventing that window from holding volume commands.
+- Coalesce rapid volume-slider changes to the latest requested level and retain
+  stale-feedback filtering after the speaker confirms the new volume.
+
 ## 1.4.113
 
 - Remove unsafe model-family Spotify matching that could route two identical

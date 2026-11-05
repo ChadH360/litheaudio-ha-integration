@@ -2106,6 +2106,19 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         self, spotify_entity_id: str
     ) -> str | None:
         """Refresh Spotify Connect devices before matching the destination."""
+        # A live exact/saved target is already usable. Avoid a redundant
+        # Spotify coordinator refresh on every play request; cloud discovery
+        # can add several seconds before transfer starts.
+        target = self._spotify_target(spotify_entity_id)
+        if target is not None:
+            _LOGGER.info(
+                "Spotify target already available for %s (%s): %r",
+                self.name,
+                self._product,
+                target,
+            )
+            return target
+
         try:
             await self.hass.services.async_call(
                 "homeassistant",
@@ -2187,14 +2200,26 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
             return
 
         try:
-            await self._async_prepare_spotify_transfer()
-            await self.hass.services.async_call(
-                MEDIA_PLAYER_DOMAIN,
-                "select_source",
-                {"entity_id": spotify_entity_id, "source": target},
-                blocking=True,
-                context=self._context,
+            spotify_state = self.hass.states.get(spotify_entity_id)
+            current_target = (
+                spotify_state.attributes.get("source")
+                if spotify_state is not None
+                else None
             )
+            if current_target != target:
+                # Only open the speaker's source-authorisation listener for
+                # an actual Spotify Connect transfer. On transactional
+                # speakers that listener owns the command socket; opening it
+                # when Spotify is already on this speaker can otherwise hold
+                # local controls, including volume, until the window expires.
+                await self._async_prepare_spotify_transfer()
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    "select_source",
+                    {"entity_id": spotify_entity_id, "source": target},
+                    blocking=True,
+                    context=self._context,
+                )
             service_data: dict[str, Any] = {
                 "entity_id": spotify_entity_id,
                 "media_content_type": media_type or MediaType.MUSIC,
