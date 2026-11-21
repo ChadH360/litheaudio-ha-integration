@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.4.114.1 (ChadH360 fork, slim-reliability branch)
+
+Reliability and load reduction, based on official 1.4.114.
+
+- Stopped reading the speaker's web page on every refresh (it was only used for the
+  Bluetooth flag and crashed the speaker's web server). Bluetooth switch removed.
+- Cast Wi-Fi diagnostics page now read every 5 minutes instead of every refresh.
+- Safety-net poll every 60 s instead of 30 s (state is pushed over LUCI anyway).
+- Removed the startup monkey-patch of Home Assistant's Spotify library.
+- Removed the Lovelace card and its automatic resource registration.
+- Short-lived background tasks are now tracked and cancelled on disconnect.
+- Fixed an undefined `MAX_SLOTS` in favourites browsing.
+- Removed dead modules (luci.py, entity.py, apple_tv_bridge.py, spotify_devices.py),
+  the duplicate copy of the integration in the repository root, committed
+  `__pycache__` files and duplicate icon folders.
+
 ## 1.4.114
 
 - Start Spotify playback immediately from an already available exact target

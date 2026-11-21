@@ -223,6 +223,9 @@ class LitheClient:
         self._bluetooth_target: bool | None = None
         self._bluetooth_target_until: float = 0.0
         self._bluetooth_http_state_known: bool = False
+        # Short-lived background jobs (metadata nudges, grants). Kept here so
+        # they aren't garbage-collected mid-run and are cancelled on disconnect.
+        self._background_tasks: set[asyncio.Task] = set()
         self._pending_bluetooth_future: asyncio.Future[bool] | None = None
         # Match the working Control4 driver: serialize all LUCI writes and
         # leave 100 ms between packets.
@@ -378,10 +381,20 @@ class LitheClient:
         except Exception as e:
             _LOGGER.debug("Heartbeat loop ended: %s", e)
 
+    def _spawn(self, coro) -> asyncio.Task:
+        """Start a tracked background task (cancelled on disconnect)."""
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
+
     async def async_disconnect(self) -> None:
         """Disconnect from speaker."""
         self.state.connected = False
         self._seen_remote_ids.clear()
+        for task in list(self._background_tasks):
+            task.cancel()
+        self._background_tasks.clear()
         if self._read_task and not self._read_task.done():
             self._read_task.cancel()
         if getattr(self, "_heartbeat_task", None) and not self._heartbeat_task.done():
@@ -467,8 +480,9 @@ class LitheClient:
         if self.use_tls:
             await self._refresh_cast_wifi_state()
 
-        # The HTTP page is the confirmed source of Bluetooth service state.
-        await self._refresh_bluetooth_http_state()
+        # Bluetooth control is not used in this build. The speaker's web page
+        # was previously read on every refresh to get the Bluetooth flag; that
+        # load crashed the speaker's web server, so the read has been removed.
 
     async def async_read_nv(self, item: str) -> str | None:
         """Read an NV item via MB#208 SET READ_<item>.
@@ -739,7 +753,7 @@ class LitheClient:
                 await self._send(0x01, MB_NOW_PLAYING, "")  # second refresh
             except Exception as e:
                 _LOGGER.debug("play_url metadata refresh failed: %s", e)
-        asyncio.create_task(_refresh())
+        self._spawn(_refresh())
 
     async def async_play_favourite(self, slot: int) -> None:
         """Play a saved favourite by slot (MB#70)."""
@@ -1165,7 +1179,10 @@ class LitheClient:
                         self._next_cast_wifi_probe = now + 300.0
                         return
                     data = await response.json(content_type=None)
-            self._next_cast_wifi_probe = now + 25.0
+            # Wi-Fi signal changes slowly; read the Cast diagnostics page every
+            # 5 minutes rather than on every refresh to keep load on the
+            # speaker's web servers down.
+            self._next_cast_wifi_probe = now + 300.0
             if isinstance(data, dict) and self._apply_cast_wifi_info(data):
                 self._notify()
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError):
@@ -1881,7 +1898,7 @@ class LitheClient:
                     new_source,
                 )
             # Schedule the grant; respond fast (target 50-500ms per spec)
-            asyncio.create_task(self._send(0x02, MB_PLAYBACK_GRANT, "1"))
+            self._spawn(self._send(0x02, MB_PLAYBACK_GRANT, "1"))
             return
 
         elif mbid == MB_DEVICE_NAME:
@@ -2014,7 +2031,7 @@ class LitheClient:
             if self.state.play_state == "playing":
                 if not self.state.position_updated_at:
                     self.state.position_updated_at = time.time()
-                asyncio.create_task(self._send(0x01, MB_POSITION, ""))
+                self._spawn(self._send(0x01, MB_POSITION, ""))
             elif self.state.play_state == "stopped":
                 self.state.position_ms = 0
                 self.state.position_updated_at = 0.0
@@ -2038,7 +2055,7 @@ class LitheClient:
                     _LOGGER.debug(
                         "Position became active with no metadata — fetching now-playing"
                     )
-                    asyncio.create_task(self._fetch_now_playing_burst())
+                    self._spawn(self._fetch_now_playing_burst())
                 # A rollback to the beginning normally marks a new track.
                 # Fetch MB#42 immediately instead of waiting for its delayed
                 # periodic push, which otherwise leaves old artwork visible.
@@ -3438,3 +3455,6 @@ class LitheClientLS9(LitheClient):
             except asyncio.CancelledError:
                 pass
         self.state.connected = False
+        for task in list(self._background_tasks):
+            task.cancel()
+        self._background_tasks.clear()

@@ -1,7 +1,6 @@
 """Lithe Audio integration for Home Assistant."""
 from __future__ import annotations
 
-import asyncio
 import logging
 import socket as _sock
 
@@ -83,36 +82,6 @@ def _infer_product(entry_data: dict) -> str:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Lithe Audio from a config entry."""
     domain_data = hass.data.setdefault(DOMAIN, {})
-    if not domain_data.get("_spotify_compat_started"):
-        domain_data["_spotify_compat_started"] = True
-
-        async def _patch_and_retry_spotify() -> None:
-            """Patch the affected parser, then retry failed Spotify entries."""
-            from .spotify_compat import apply_spotifyaio_compat
-
-            # importlib.metadata reads distribution metadata from disk.  HA
-            # 2026.10 detects that work when it happens on the event loop, so
-            # keep the compatibility probe and monkey-patch in the executor.
-            if not await hass.async_add_executor_job(apply_spotifyaio_compat):
-                return
-            # Spotify is an optional after-dependency. Its initial setup has
-            # completed, but allow state transitions to settle before reload.
-            await asyncio.sleep(1.0)
-            for spotify_entry in hass.config_entries.async_entries("spotify"):
-                state_name = getattr(spotify_entry.state, "name", "").lower()
-                if state_name == "loaded":
-                    continue
-                _LOGGER.warning(
-                    "Retrying Spotify config entry %s after applying the "
-                    "playlist compatibility patch",
-                    spotify_entry.title,
-                )
-                try:
-                    await hass.config_entries.async_reload(spotify_entry.entry_id)
-                except Exception as err:
-                    _LOGGER.warning("Spotify compatibility reload failed: %s", err)
-
-        hass.async_create_task(_patch_and_retry_spotify())
 
     # Version banner — helps diagnose partial-install issues. Run this once
     # per integration load rather than once for every configured speaker.
@@ -136,7 +105,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Critical-file freshness check via known markers in current code
         _expected_markers = {
             "lithe_client.py": '"id": "home-assistant"',
-            "card_resource.py": "Probe filesystem in executor",
             "switch.py": "LitheHighPassProtectionSwitch",
             "number.py": "LitheLoudnessNumber",
             "media_player.py": "_EXCLUDED_SOURCES",
@@ -374,10 +342,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         obsolete_unique_ids.append(
             ("switch", f"{host}_{entry.entry_id}_nightmode")
         )
-    if not product_caps["bluetooth_switch"]:
-        obsolete_unique_ids.append(
-            ("switch", f"{host}_{entry.entry_id}_bluetooth")
-        )
+    # Bluetooth control is not part of this build; remove the old switch.
+    obsolete_unique_ids.append(
+        ("switch", f"{host}_{entry.entry_id}_bluetooth")
+    )
     obsolete_unique_ids.extend([
         ("select", f"{host}_{entry.entry_id}_cast_group"),
         ("select", f"{host}_{entry.entry_id}_spotify_target"),
@@ -451,15 +419,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         from .snapshot import register_snapshot_services
         register_snapshot_services(hass)
         hass.data[DOMAIN]["_snapshot_registered"] = True
-
-    # Lovelace card auto-registration (idempotent, safe to call repeatedly)
-    if not hass.data.get(DOMAIN, {}).get("_card_registered"):
-        try:
-            from .card_resource import async_register_card
-            await async_register_card(hass)
-            hass.data[DOMAIN]["_card_registered"] = True
-        except Exception as e:
-            _LOGGER.debug("Card registration failed (non-fatal): %s", e)
 
     # Apply Prayer Scheduler options if user has configured them via UI
     await _apply_prayer_options(hass, entry)

@@ -1565,7 +1565,7 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         if media_content_id == _FAVOURITE_FOLDER:
             if not self._supports_favourites:
                 raise BrowseError("Favourites are not supported by this model")
-            from .local_favs import get_local_favs
+            from .local_favs import MAX_SLOTS, get_local_favs
             manager = get_local_favs(self.hass)
             local_by_slot = {
                 int(item["slot"]): item
