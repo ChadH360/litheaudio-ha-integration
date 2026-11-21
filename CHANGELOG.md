@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.4.114.2 (ChadH360 fork, slim build)
+
+Removes features that aren't used or don't work on current firmware.
+
+- Removed chimes (the speaker firmware has no prompt-tone files), alarms, the prayer
+  scheduler, multi-room/Cast groups, favourites, the Tannoy/broadcast/doorbell/snapshot
+  services and the options flow that configured them.
+- Removed Spotify and Music Assistant browsing bridges. Media browsing now shows Home
+  Assistant's own media sources (radio, TTS, My Media).
+- Media player rewritten (about 480 lines, was about 2,300). It still shows what is
+  playing from any source, with transport, volume, EQ (sound mode) and URL /
+  media-source playback. Source list is now No Source and Aux (where fitted).
+- `play_media` with `announce: true` plays the URL and applies `extra.volume` if given.
+  It does not resume what was playing before.
+- Removed the player's missing logo fallback.
+- Services kept: play_url, set_name, reboot and the DSP/EQ services.
+- Entities for removed features are deleted from the entity registry on load.
+
 ## 1.4.114.1 (ChadH360 fork, slim-reliability branch)
 
 Reliability and load reduction, based on official 1.4.114.

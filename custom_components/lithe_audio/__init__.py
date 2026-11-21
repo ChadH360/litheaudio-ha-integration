@@ -10,22 +10,16 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 
-from .cast_group import async_register_cast_group_service
 from .const import (
-    BT_DISC, BT_PAIR, CONF_CERT_PATH, CONF_HOST, CONF_KEY_PATH,
+    CONF_CERT_PATH, CONF_HOST, CONF_KEY_PATH,
     CONF_PORT, CONF_PRODUCT, CONF_USE_TLS, DATA_COORDINATOR, DOMAIN,
     DSP_BALANCE, DSP_BASS_FIELD, DSP_EQ, DSP_EQ_BANDS, DSP_LOUDNESS,
     DSP_MID_FIELD, DSP_NIGHTMODE, DSP_OUTPUT, DSP_TREBLE_FIELD,
-    EQ_PRESETS, LS9_PRODUCTS, MAX_CHIME_SLOT, OUT_OPTIONS, PRODUCT_NAMES,
+    EQ_PRESETS, LS9_PRODUCTS, OUT_OPTIONS, PRODUCT_NAMES,
     capability_product_from_state, caps,
 )
 from .coordinator import LitheAudioCoordinator
 from .lithe_client import LitheClient, LitheClientLS9
-from .alarms import async_setup_alarm_manager, get_manager
-from .prayer import (
-    async_register_prayer_service, async_remove_prayer_schedule,
-    async_unload_prayer,
-)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +30,6 @@ PLATFORMS = [
     Platform.SELECT,
     Platform.SWITCH,
     Platform.SENSOR,
-    Platform.TEXT,
 ]
 
 
@@ -183,7 +176,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ClientCls = LitheClientLS9 if product in LS9_PRODUCTS else LitheClient
     client = ClientCls(host, port, use_tls, cert, key, local_ip)
     client.product = product
-    client.supports_favourites = bool(caps(product).get("favourites", True))
+    # Favourites are not part of this build: skip favourites polling.
+    client.supports_favourites = False
 
     coordinator = LitheAudioCoordinator(hass, client, entry.entry_id)
     await coordinator.async_config_entry_first_refresh()
@@ -252,9 +246,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             product = capability_product
             client.product = product
-            client.supports_favourites = bool(
-                caps(product).get("favourites", True)
-            )
         else:
             _LOGGER.error(
                 "Speaker %s reports model variant %r but it conflicts with the active "
@@ -267,27 +258,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         DATA_COORDINATOR: coordinator,
     }
-
-    # Favourite entities read names during async_added_to_hass, so storage
-    # must be loaded before forwarding entity platforms. The previous order
-    # left their manager permanently unset until the next full reload.
-    if "local_favs" not in hass.data.get(DOMAIN, {}):
-        from .local_favs import (
-            async_setup_local_favourites,
-            register_local_fav_services,
-        )
-        await async_setup_local_favourites(hass)
-        register_local_fav_services(hass)
-
-    # Group entities are built by the media_player platform, so their shared
-    # manager must exist before platform forwarding begins.  Creating it after
-    # the forward caused the first platform setup to permanently record that
-    # groups had been added while actually adding none.
-    if "groups_mgr" not in hass.data.get(DOMAIN, {}):
-        from .group import async_setup_group_manager
-
-        await async_setup_group_manager(hass)
-        _register_group_services(hass)
 
     # Remove entities superseded by the slot selector/save button workflow.
     # Product-specific cleanup below also removes controls left in the entity
@@ -350,20 +320,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ("select", f"{host}_{entry.entry_id}_cast_group"),
         ("select", f"{host}_{entry.entry_id}_spotify_target"),
     ])
-    if not product_caps["favourites"]:
-        obsolete_unique_ids.extend([
-            ("button", f"{host}_{entry.entry_id}_heart_save"),
-            ("select", f"{host}_{entry.entry_id}_fav_save_slot"),
-            ("text", f"{host}_{entry.entry_id}_fav_save_name"),
-            *(
-                ("button", f"{host}_{entry.entry_id}_play_fav_{slot}")
-                for slot in range(1, 11)
-            ),
-            *(
-                ("text", f"{host}_{entry.entry_id}_fav_name_{slot}")
-                for slot in range(1, 11)
-            ),
-          ])
+    # Alarms are not part of this build.
+    obsolete_unique_ids.append(
+        ("sensor", f"{host}_{entry.entry_id}_next_alarm")
+    )
+    # The factory-reset button is too easy to press by accident; removed.
+    obsolete_unique_ids.append(
+        ("button", f"{host}_{entry.entry_id}_factory_reset")
+    )
+    # Favourites are not part of this build.
+    obsolete_unique_ids.extend([
+        ("button", f"{host}_{entry.entry_id}_heart_save"),
+        ("select", f"{host}_{entry.entry_id}_fav_save_slot"),
+        ("text", f"{host}_{entry.entry_id}_fav_save_name"),
+        *(
+            ("button", f"{host}_{entry.entry_id}_play_fav_{slot}")
+            for slot in range(1, 11)
+        ),
+        *(
+            ("text", f"{host}_{entry.entry_id}_fav_name_{slot}")
+            for slot in range(1, 11)
+        ),
+    ])
     if not product_caps["subwoofer_controls"]:
         obsolete_unique_ids.extend([
             ("select", f"{host}_{entry.entry_id}_sub_profile"),
@@ -373,13 +351,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ("switch", f"{host}_{entry.entry_id}_sub_lowpass"),
             ("button", f"{host}_{entry.entry_id}_sub_save"),
         ])
-    supported_chimes = int(product_caps.get("chimes", 0) or 0)
+    # Built-in chimes are not part of this build (V3 firmware has no chime
+    # files and answers every MB#80 request with NI).
     obsolete_unique_ids.extend(
-        (
-            "button",
-            f"{host}_{entry.entry_id}_chime_{slot}",
-        )
-        for slot in range(supported_chimes + 1, 15)
+        ("button", f"{host}_{entry.entry_id}_chime_{slot}")
+        for slot in range(1, 16)
     )
     for entity_domain, unique_id in obsolete_unique_ids:
         entity_id = registry.async_get_entity_id(
@@ -391,102 +367,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     _register_services(hass)
-    await async_register_cast_group_service(hass)
-
-    if product_caps.get("scheduling", True):
-        await async_register_prayer_service(hass)
-        # Alarm manager — single instance shared across eligible entries.
-        if "alarms" not in hass.data.get(DOMAIN, {}):
-            await async_setup_alarm_manager(hass)
-        if not hass.services.has_service(DOMAIN, "alarm_create"):
-            _register_alarm_services(hass)
-
-    # Announce / broadcast / doorbell services (high-level wrappers)
-    if not hass.data.get(DOMAIN, {}).get("_announce_registered"):
-        from .announce import register_announce_services
-        register_announce_services(hass)
-        hass.data[DOMAIN]["_announce_registered"] = True
-
-    # Tannoy / PA override service — register lithe_audio.tannoy AND
-    # notify.lithe_tannoy (legacy callers).
-    if not hass.services.has_service(DOMAIN, "tannoy"):
-        from .notify import register_tannoy_service
-        register_tannoy_service(hass)
-        hass.data[DOMAIN]["_tannoy_registered"] = True
-
-    # Snapshot / restore / sleep-timer services (Sonos + Bluesound patterns)
-    if not hass.data.get(DOMAIN, {}).get("_snapshot_registered"):
-        from .snapshot import register_snapshot_services
-        register_snapshot_services(hass)
-        hass.data[DOMAIN]["_snapshot_registered"] = True
-
-    # Apply Prayer Scheduler options if user has configured them via UI
-    await _apply_prayer_options(hass, entry)
-
-    # Reload the integration when options change so the scheduler picks up edits
-    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
     return True
-
-
-async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload integration so Prayer Scheduler picks up new schedule."""
-    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
-    if entry_data.pop("_skip_next_options_reload", False):
-        return
-    await hass.config_entries.async_reload(entry.entry_id)
-
-
-async def _apply_prayer_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """If user has configured Prayer in Options Flow, start the scheduler."""
-    if not caps(entry.data[CONF_PRODUCT]).get("scheduling", True):
-        await async_remove_prayer_schedule(hass, entry.entry_id)
-        return
-    opts = entry.options or {}
-    prayer_cfg = opts.get("prayer") or {}
-    if not prayer_cfg.get("enabled"):
-        await async_remove_prayer_schedule(hass, entry.entry_id)
-        return
-
-    host = entry.data.get("host")
-    entries_cfg = prayer_cfg.get("entries", {}) or {}
-    if not entries_cfg:
-        await async_remove_prayer_schedule(hass, entry.entry_id)
-        return
-
-    # Convert UI per-prayer entries into the format set_prayer_schedule expects.
-    # Each entry targets THIS speaker only — the user configures per-speaker via
-    # the Options Flow on each integration card.
-    entries_list = []
-    for prayer_name, e in entries_cfg.items():
-        entries_list.append({
-            "prayer":   prayer_name,
-            "speakers": [host],
-            "url":      e.get("url"),
-            "volume":   int(e.get("volume", 70)),
-            "days":     e.get("days", "daily"),
-        })
-    if not entries_list:
-        return
-
-    try:
-        await hass.services.async_call(
-            DOMAIN, "set_prayer_schedule",
-            {
-                "schedule_id": entry.entry_id,
-                "city":    prayer_cfg.get("city", "London"),
-                "country": prayer_cfg.get("country", "GB"),
-                "method":  int(prayer_cfg.get("method", 2)),
-                "entries": entries_list,
-            },
-            blocking=True,
-        )
-        _LOGGER.info(
-            "Applied Prayer Schedule for %s — %d entries",
-            host, len(entries_list),
-        )
-    except Exception as e:
-        _LOGGER.error("Failed to apply Prayer Schedule: %s", e)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -499,49 +381,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             coordinator: LitheAudioCoordinator = entry_data[DATA_COORDINATOR]
             await coordinator.async_shutdown()
 
-        await async_remove_prayer_schedule(hass, entry.entry_id)
-
-        # If this was the last config entry, tear down shared services too
+        # If this was the last config entry, remove the shared services too
         has_other_entries = any(
             isinstance(v, dict) and DATA_COORDINATOR in v
             for v in bucket.values()
         )
         if not has_other_entries:
-            await async_unload_prayer(hass)
-            alarm_mgr = bucket.pop("alarms", None)
-            if alarm_mgr:
-                await alarm_mgr.async_shutdown()
-            bucket.pop("groups_mgr", None)
-            bucket.pop("_groups_added", None)
-            bucket.pop("_group_async_add_entities", None)
-            for svc in (
-                "play_chime", "play_url", "play_favourite", "save_favourite",
-                "play_quran_juz", "play_adhan",
-                "set_volume_preset", "select_source_type",
-                "alarm_create", "alarm_update", "alarm_delete",
-                "alarm_toggle", "alarm_snooze", "alarm_dismiss",
-                "group_create", "group_update", "group_delete",
-                "announce", "broadcast", "doorbell",
-                "fav_save", "fav_play", "fav_list", "fav_delete",
-                "snapshot", "restore",
-                "set_sleep_timer", "clear_sleep_timer",
-                "tannoy",
-                "set_dsp_eq", "set_dsp_eq_band", "set_dsp_output",
-                "set_dsp_nightmode", "set_dsp_balance", "set_dsp_loudness",
-                "bluetooth_pair", "bluetooth_disconnect",
-                "reboot", "set_name", "play_group", "set_prayer_schedule",
-            ):
+            for svc in _SERVICES:
                 if hass.services.has_service(DOMAIN, svc):
                     hass.services.async_remove(DOMAIN, svc)
-            # These guards must be reset alongside their services or the next
-            # config-entry setup skips registration after an options reload.
-            for flag in (
-                "_announce_registered", "_tannoy_registered",
-                "_snapshot_registered",
-            ):
-                bucket.pop(flag, None)
-            if hass.services.has_service("notify", "lithe_tannoy"):
-                hass.services.async_remove("notify", "lithe_tannoy")
     return unload_ok
 
 
@@ -591,157 +439,17 @@ def _resolve_coordinators(hass: HomeAssistant, call: ServiceCall) -> list[LitheA
     return coordinators
 
 
-def _register_group_services(hass: HomeAssistant) -> None:
-    """Register group-management services.
-
-    Services:
-      lithe_audio.group_create
-      lithe_audio.group_update
-      lithe_audio.group_delete
-    """
-    from .group import get_group_manager
-
-    async def svc_group_create(call):
-        mgr = get_group_manager(hass)
-        if not mgr:
-            return
-        members = call.data.get("members") or []
-        if isinstance(members, str):
-            members = [m.strip() for m in members.split(",") if m.strip()]
-        group = {
-            "name":     (call.data.get("name") or "New Group").strip(),
-            "members":  members,
-            "default_volume": int(call.data.get("default_volume", 50)),
-        }
-        gid = await mgr.async_add_group(group)
-        _LOGGER.info("Created group %s — restart HA to see the new media_player entity", gid)
-
-    async def svc_group_update(call):
-        mgr = get_group_manager(hass)
-        if not mgr:
-            return
-        gid = call.data.get("id")
-        if not gid:
-            return
-        patch = {k: v for k, v in call.data.items() if k != "id"}
-        if "members" in patch and isinstance(patch["members"], str):
-            patch["members"] = [m.strip() for m in patch["members"].split(",") if m.strip()]
-        await mgr.async_update_group(gid, patch)
-
-    async def svc_group_delete(call):
-        mgr = get_group_manager(hass)
-        if not mgr:
-            return
-        gid = call.data.get("id")
-        if gid:
-            await mgr.async_delete_group(gid)
-
-    hass.services.async_register(DOMAIN, "group_create", svc_group_create)
-    hass.services.async_register(DOMAIN, "group_update", svc_group_update)
-    hass.services.async_register(DOMAIN, "group_delete", svc_group_delete)
-
-
-def _register_alarm_services(hass: HomeAssistant) -> None:
-    """Register alarm-related services on the lithe_audio domain.
-
-    Services:
-      lithe_audio.alarm_create   — create a new alarm
-      lithe_audio.alarm_update   — modify an existing alarm
-      lithe_audio.alarm_delete   — remove an alarm
-      lithe_audio.alarm_toggle   — enable/disable
-      lithe_audio.alarm_snooze   — snooze a firing alarm
-      lithe_audio.alarm_dismiss  — stop a firing alarm
-    """
-
-    async def svc_create(call):
-        mgr = get_manager(hass)
-        if not mgr:
-            return
-        from .alarms import default_alarm
-        alarm = default_alarm()
-        # Apply user-provided fields
-        for key in (
-            "name", "time", "repeat", "days", "day_of_month", "date",
-            "speakers", "source", "preset_url", "favourite_slot",
-            "chime_slot", "custom_url", "volume", "fade_in_seconds",
-            "snooze_minutes", "enabled",
-        ):
-            if key in call.data:
-                alarm[key] = call.data[key]
-        # Type fixes
-        if "volume" in call.data:
-            alarm["volume"] = int(call.data["volume"])
-        if "fade_in_seconds" in call.data:
-            alarm["fade_in_seconds"] = int(call.data["fade_in_seconds"])
-        if "snooze_minutes" in call.data:
-            alarm["snooze_minutes"] = int(call.data["snooze_minutes"])
-        if "favourite_slot" in call.data:
-            alarm["favourite_slot"] = int(call.data["favourite_slot"])
-        if "chime_slot" in call.data:
-            alarm["chime_slot"] = int(call.data["chime_slot"])
-        if "day_of_month" in call.data:
-            alarm["day_of_month"] = int(call.data["day_of_month"])
-        alarm_id = await mgr.async_add_alarm(alarm)
-        _LOGGER.info("Created alarm %s via service", alarm_id)
-
-    async def svc_update(call):
-        mgr = get_manager(hass)
-        if not mgr:
-            return
-        alarm_id = call.data.get("id")
-        if not alarm_id:
-            _LOGGER.error("alarm_update requires 'id'")
-            return
-        patch = {k: v for k, v in call.data.items() if k != "id"}
-        await mgr.async_update_alarm(alarm_id, patch)
-
-    async def svc_delete(call):
-        mgr = get_manager(hass)
-        if not mgr:
-            return
-        alarm_id = call.data.get("id")
-        if not alarm_id:
-            return
-        await mgr.async_delete_alarm(alarm_id)
-
-    async def svc_toggle(call):
-        mgr = get_manager(hass)
-        if not mgr:
-            return
-        alarm_id = call.data.get("id")
-        enabled = bool(call.data.get("enabled", True))
-        if alarm_id:
-            await mgr.async_toggle_alarm(alarm_id, enabled)
-
-    async def svc_snooze(call):
-        mgr = get_manager(hass)
-        if not mgr:
-            return
-        alarm_id = call.data.get("id")
-        minutes = call.data.get("minutes")
-        if alarm_id:
-            await mgr.async_snooze(alarm_id, int(minutes) if minutes else None)
-
-    async def svc_dismiss(call):
-        mgr = get_manager(hass)
-        if not mgr:
-            return
-        alarm_id = call.data.get("id")
-        if alarm_id:
-            await mgr.async_dismiss(alarm_id)
-
-    hass.services.async_register(DOMAIN, "alarm_create",   svc_create)
-    hass.services.async_register(DOMAIN, "alarm_update",   svc_update)
-    hass.services.async_register(DOMAIN, "alarm_delete",   svc_delete)
-    hass.services.async_register(DOMAIN, "alarm_toggle",   svc_toggle)
-    hass.services.async_register(DOMAIN, "alarm_snooze",   svc_snooze)
-    hass.services.async_register(DOMAIN, "alarm_dismiss",  svc_dismiss)
+_SERVICES = (
+    "play_url", "set_name", "reboot",
+    "set_dsp_eq", "set_dsp_eq_band", "set_dsp_output",
+    "set_dsp_nightmode", "set_dsp_balance", "set_dsp_loudness",
+)
 
 
 def _register_services(hass: HomeAssistant) -> None:
-    """Register all Lithe Audio service actions."""
+    """Register the Lithe Audio service actions."""
 
-    if hass.services.has_service(DOMAIN, "play_chime"):
+    if hass.services.has_service(DOMAIN, "play_url"):
         return  # Already registered for another entry
 
     async def _for_each(call: ServiceCall, fn) -> None:
@@ -754,18 +462,6 @@ def _register_services(hass: HomeAssistant) -> None:
             except Exception as e:
                 _LOGGER.error("%s failed on %s: %s", call.service, coord.client.host, e)
 
-    # ── Playback / chime ────────────────────────────────────────────────
-    async def svc_play_chime(call: ServiceCall) -> None:
-        n = max(1, min(int(call.data.get("chime_number", 1)), MAX_CHIME_SLOT))
-        method = str(call.data.get("method", "Indexed")).strip().lower()
-        if method.startswith("direct"):
-            # Method 2: MB#41 PLAYITEM:DIRECT:/system/usr/songN.mp3
-            path = f"/system/usr/song{n}.mp3"
-            await _for_each(call, lambda c: c.async_play_url(path))
-        else:
-            # Method 1: MB#80 "play N"  (default)
-            await _for_each(call, lambda c: c.async_play_chime(n))
-
     async def svc_play_url(call: ServiceCall) -> None:
         url = str(call.data.get("url", "")).strip()
         if not url:
@@ -775,164 +471,15 @@ def _register_services(hass: HomeAssistant) -> None:
             call, lambda c: c.async_play_url(url, title=title)
         )
 
-    async def svc_play_favourite(call: ServiceCall) -> None:
-        """Play a saved favourite by slot number.
-
-        Prefers HA-side local favourites (works for any URL). Falls back
-        to native MB#70 PLAYFAVITEM if the slot has no local entry.
-        """
-        slot = int(call.data.get("slot", 1))
-        # Try local favs first (faster, works for Direct URL streams)
-        from .local_favs import get_local_favs
-        mgr = get_local_favs(hass)
-        if mgr is not None:
-            fav = mgr.get(slot)
-            if fav and fav.get("url"):
-                _LOGGER.info("play_favourite: local slot %d → %s",
-                             slot, fav["url"])
-                await _for_each(call, lambda c: c.async_play_url(fav["url"]))
-                return
-        # Fall back to native firmware favourite
-        _LOGGER.info("play_favourite: trying native MB#70 slot %d", slot)
-        await _for_each(call, lambda c: c.async_play_favourite(slot))
-
-    async def svc_save_favourite(call: ServiceCall) -> None:
-        """Save current playback to a slot.
-
-        Tries HA-side local favourites first (saves the current URL).
-        Also tries the native MB#70 FAV_SAVE — that one only works for
-        streaming sources (Spotify/AirPlay/Cast), Direct URL streams
-        get GENERIC_FAV_SAVE_FAIL from firmware, which is normal.
-        """
-        slot = int(call.data.get("slot", 1))
-        from .local_favs import get_local_favs
-        mgr = get_local_favs(hass)
-
-        async def save_one(client) -> None:
-            url = client.state.last_played_url
-            name = client.state.title or ""
-            if not name and url:
-                from urllib.parse import urlparse
-                name = urlparse(url).path.rsplit("/", 1)[-1]
-                if "." in name:
-                    name = name.rsplit(".", 1)[0]
-            if not name:
-                name = f"Favourite {slot}"
-            if mgr is not None and url:
-                await mgr.async_set(slot, name, url)
-            # Also try native firmware save (silently fails for Direct URL)
-            try:
-                await client.async_save_favourite(slot)
-            except Exception:
-                pass
-
-        await _for_each(call, save_one)
-
-    async def svc_set_volume_preset(call: ServiceCall) -> None:
-        """Quick-pick volume 0/20/40/60/80/100."""
-        level = int(call.data.get("level", 40))
-        level = max(0, min(100, level))
-        # Each Lithe speaker exposes async_set_volume(0-100)
-        await _for_each(call, lambda c: c.async_set_volume(level))
-        _LOGGER.info("set_volume_preset → %d%%", level)
-
-    async def svc_select_source_type(call: ServiceCall) -> None:
-        """Switch active source by friendly name."""
-        # Friendly name → numeric source ID (per LUCI MB#50)
-        SOURCE_NAME_TO_ID = {
-            "no_source":   0,
-            "airplay":     1,
-            "dlna":        2,    # DMR
-            "spotify":     4,
-            "usb":         5,
-            "aux":         13,   # AUX In
-            "spdif":       14,   # SPDIF In (Optical)
-            "direct_url":  17,
-            "bluetooth":   19,
-            "cast":        24,   # Google Cast
-        }
-        source = str(call.data.get("source", "")).strip().lower()
-        src_id = SOURCE_NAME_TO_ID.get(source)
-        if src_id is None:
-            _LOGGER.warning(
-                "select_source_type: unknown source '%s' (valid: %s)",
-                source, sorted(SOURCE_NAME_TO_ID.keys()),
-            )
-            return
-        # MB#50 is feedback-only in the working C4 driver. Bluetooth has a
-        # dedicated MB#209 command; other sources need source-specific flows.
-        async def do_switch(c):
-            if source == "bluetooth":
-                from .const import BT_ON
-                await c.async_bluetooth(BT_ON)
-                return
-            _LOGGER.warning(
-                "select_source_type: '%s' cannot be activated with MB#50; "
-                "use its source-specific playback command",
-                source,
-            )
-        await _for_each(call, do_switch)
-
-    async def svc_play_quran_juz(call: ServiceCall) -> None:
-        """Play a specific Juz of the Quran via the tannoy flow."""
-        from .const import QURAN_JUZ
-        juz = int(call.data.get("juz", 1))
-        juz = max(1, min(30, juz))
-        url = QURAN_JUZ.get(juz)
-        if not url:
-            _LOGGER.error("Quran Juz %d not in preset table", juz)
-            return
-        volume = int(call.data.get("volume", 70))
-        coords = _resolve_coordinators(hass, call)
-        speakers = [c.client.host for c in coords]
-        if not speakers:
-            _LOGGER.warning("play_quran_juz: no target speakers resolved")
-            return
-        await hass.services.async_call(
-            "notify", "lithe_tannoy",
-            {
-                "message": url,
-                "data": {
-                    "mode": "start", "volume": volume, "speakers": speakers,
-                    "title": f"Quran - Juz {juz}", "artist": "Quran",
-                },
-            },
-            blocking=False,
-        )
-
-    async def svc_play_adhan(call: ServiceCall) -> None:
-        """Play one of the preset Adhan recordings via the tannoy flow."""
-        from .const import ADHAN_PRESETS
-        preset = call.data.get("preset", "Adhan — Makkah")
-        url = ADHAN_PRESETS.get(preset)
-        if not url:
-            _LOGGER.error("Adhan preset %r not in preset table", preset)
-            return
-        volume = int(call.data.get("volume", 70))
-        coords = _resolve_coordinators(hass, call)
-        speakers = [c.client.host for c in coords]
-        if not speakers:
-            _LOGGER.warning("play_adhan: no target speakers resolved")
-            return
-        await hass.services.async_call(
-            "notify", "lithe_tannoy",
-            {
-                "message": url,
-                "data": {
-                    "mode": "start", "volume": volume, "speakers": speakers,
-                    "title": str(preset), "artist": "Prayer",
-                },
-            },
-            blocking=False,
-        )
-
     async def svc_set_name(call: ServiceCall) -> None:
         name = str(call.data.get("name", "")).strip()
         if not name:
             return
         await _for_each(call, lambda c: c.async_set_name(name))
 
-    # ── DSP ─────────────────────────────────────────────────────────────
+    async def svc_reboot(call: ServiceCall) -> None:
+        await _for_each(call, lambda c: c.async_reboot())
+
     async def svc_set_eq(call: ServiceCall) -> None:
         preset = call.data.get("preset", "Normal")
         idx = EQ_PRESETS.index(preset) if preset in EQ_PRESETS else 0
@@ -967,31 +514,12 @@ def _register_services(hass: HomeAssistant) -> None:
         val = 1 if call.data.get("enabled") else 0
         await _for_each(call, lambda c: c.async_dsp_command(DSP_LOUDNESS, val))
 
-    # ── Bluetooth / system ──────────────────────────────────────────────
-    async def svc_bt_pair(call: ServiceCall) -> None:
-        await _for_each(call, lambda c: c.async_bluetooth(BT_PAIR))
-
-    async def svc_bt_disc(call: ServiceCall) -> None:
-        await _for_each(call, lambda c: c.async_bluetooth(BT_DISC))
-
-    async def svc_reboot(call: ServiceCall) -> None:
-        await _for_each(call, lambda c: c.async_reboot())
-
-    hass.services.async_register(DOMAIN, "play_chime",       svc_play_chime)
-    hass.services.async_register(DOMAIN, "play_url",         svc_play_url)
-    hass.services.async_register(DOMAIN, "play_favourite",   svc_play_favourite)
-    hass.services.async_register(DOMAIN, "save_favourite",   svc_save_favourite)
-    hass.services.async_register(DOMAIN, "play_quran_juz",   svc_play_quran_juz)
-    hass.services.async_register(DOMAIN, "play_adhan",       svc_play_adhan)
-    hass.services.async_register(DOMAIN, "set_volume_preset",   svc_set_volume_preset)
-    hass.services.async_register(DOMAIN, "select_source_type",  svc_select_source_type)
-    hass.services.async_register(DOMAIN, "set_name",         svc_set_name)
-    hass.services.async_register(DOMAIN, "set_dsp_eq",       svc_set_eq)
-    hass.services.async_register(DOMAIN, "set_dsp_eq_band",  svc_set_eq_band)
-    hass.services.async_register(DOMAIN, "set_dsp_output",   svc_set_output)
+    hass.services.async_register(DOMAIN, "play_url",          svc_play_url)
+    hass.services.async_register(DOMAIN, "set_name",          svc_set_name)
+    hass.services.async_register(DOMAIN, "reboot",            svc_reboot)
+    hass.services.async_register(DOMAIN, "set_dsp_eq",        svc_set_eq)
+    hass.services.async_register(DOMAIN, "set_dsp_eq_band",   svc_set_eq_band)
+    hass.services.async_register(DOMAIN, "set_dsp_output",    svc_set_output)
     hass.services.async_register(DOMAIN, "set_dsp_nightmode", svc_set_nightmode)
-    hass.services.async_register(DOMAIN, "set_dsp_balance",  svc_set_balance)
-    hass.services.async_register(DOMAIN, "set_dsp_loudness", svc_set_loudness)
-    hass.services.async_register(DOMAIN, "bluetooth_pair",   svc_bt_pair)
-    hass.services.async_register(DOMAIN, "bluetooth_disconnect", svc_bt_disc)
-    hass.services.async_register(DOMAIN, "reboot",           svc_reboot)
+    hass.services.async_register(DOMAIN, "set_dsp_balance",   svc_set_balance)
+    hass.services.async_register(DOMAIN, "set_dsp_loudness",  svc_set_loudness)
