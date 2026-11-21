@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.114.3 (ChadH360 fork)
+
+- The player shows the Lithe Audio logo when there is no track artwork, instead of a
+  broken image.
+
 ## 1.4.114.2 (ChadH360 fork, slim build)
 
 Removes features that aren't used or don't work on current firmware.
