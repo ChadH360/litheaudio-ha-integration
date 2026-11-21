@@ -510,7 +510,9 @@ BUNDLED_CERT_PEM = _os.path.join(_CERTS_DIR, "client.pem")
 BUNDLED_CERT_KEY = _os.path.join(_CERTS_DIR, "client.key")
 
 # ── Update intervals ────────────────────────────────────────────────────────
-SCAN_INTERVAL_S = 30
+# The speaker pushes changes over the LUCI session; this poll is only a
+# safety net, so 60 s (was 30 s) halves the request load per speaker.
+SCAN_INTERVAL_S = 60
 
 # ── Coordinator data keys ───────────────────────────────────────────────────
 DATA_COORDINATOR = "coordinator"

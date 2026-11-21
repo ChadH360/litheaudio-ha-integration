@@ -34,8 +34,7 @@ async def async_setup_entry(
         entities.append(LitheLoudnessSwitch(coordinator, entry))
     if c["tuning_switch"]:
         entities.append(LitheHighPassProtectionSwitch(coordinator, entry))
-    if c["bluetooth_switch"]:
-        entities.append(LitheBluetoothSwitch(coordinator, entry))
+    # Bluetooth switch removed in this build (see __init__.py cleanup).
     if c["subwoofer_controls"]:
         entities.append(LitheSubwooferLowPassSwitch(coordinator, entry))
     # Do not expose AUX/SPDIF switches through MB#50. The working C4 driver
