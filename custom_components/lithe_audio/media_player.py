@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -46,6 +47,17 @@ _PLAYABLE_TYPES = {
     "audio/mp3", "audio/mpeg", "audio/wav", "audio/x-wav",
     "audio/aac", "audio/flac", "audio/ogg", "audio/x-mpegurl",
 }
+
+
+_LOGO_PATH = Path(__file__).parent / "brand" / "icon@2x.png"
+
+
+def _read_logo() -> bytes | None:
+    """Read the bundled Lithe logo (runs in the executor)."""
+    try:
+        return _LOGO_PATH.read_bytes()
+    except OSError:
+        return None
 
 
 async def async_setup_entry(
@@ -241,14 +253,16 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
 
     @property
     def media_image_url(self) -> str | None:
-        # Current track artwork only. The old logo fallback was served by the
-        # removed card_resource static path, so it no longer exists.
+        # Current track artwork only. With no artwork, async_get_media_image
+        # serves the bundled Lithe logo through HA's image proxy instead.
         return self._client.state.artwork_url or None
 
     @property
     def media_image_hash(self) -> str | None:
         """Change the HA image cache key whenever track metadata changes."""
         s = self._client.state
+        if not s.artwork_url:
+            return "lithe_logo"
         identity = "\0".join((
             self.media_image_url or "", s.title, s.artist, s.album,
             str(s.artwork_revision),
@@ -260,8 +274,14 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
         """Let clients fetch public artwork directly, but proxy speaker URLs."""
         url = self._client.state.artwork_url
         if not url:
-            return True
+            return False  # the logo is served by HA, not by a public URL
         return urlparse(url).hostname != self._client.host
+
+    async def async_get_media_image(self) -> tuple[bytes | None, str | None]:
+        """Return track artwork, or the Lithe logo when there is none."""
+        if self._client.state.artwork_url:
+            return await super().async_get_media_image()
+        return await self.hass.async_add_executor_job(_read_logo), "image/png"
 
     @property
     def media_duration(self) -> int | None:
