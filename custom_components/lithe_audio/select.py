@@ -1,22 +1,16 @@
 """Select entities for Lithe Audio DSP selectors."""
 from __future__ import annotations
 
-from homeassistant.components.media_player import DOMAIN as MEDIA_PLAYER_DOMAIN
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EVENT_STATE_CHANGED
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CONF_PRODUCT,
-    CONF_CAST_GROUP_ENTITY,
-    CONF_CAST_GROUP_NAME,
-    CONF_SPOTIFY_TARGET,
     DATA_COORDINATOR,
     DOMAIN,
     DSP_EQ,
@@ -40,7 +34,6 @@ from .const import (
     caps,
 )
 from .coordinator import LitheAudioCoordinator
-from .local_favs import MAX_SLOTS, get_local_favs
 
 
 async def async_setup_entry(
@@ -69,13 +62,6 @@ async def async_setup_entry(
             LitheSubwooferCrossoverSelect(coordinator, entry),
             LitheSubwooferPhaseSelect(coordinator, entry),
         ))
-
-    if c["spotify_target_select"]:
-        entities.append(LitheSpotifyTargetSelect(coordinator, entry))
-    if c["cast_group_select"]:
-        entities.append(LitheCastGroupSelect(coordinator, entry))
-    if c["favourites"]:
-        entities.append(LitheFavouriteSaveSlotSelect(coordinator, entry))
 
     if entities:
         async_add_entities(entities)
@@ -413,263 +399,4 @@ class LitheTuningSelect(_LitheBaseSelect):
         self._current = TUNING_OPTIONS[idx]
         self._optimistic_until = time.monotonic() + 5.0
         await self._client.async_dsp_command(DSP_TUNING, idx)
-        self.async_write_ha_state()
-
-
-class LitheFavouriteSaveSlotSelect(_LitheBaseSelect):
-    """Choose the explicit favourite slot used by Save Current Track."""
-
-    _attr_name = "Favourites — Save Slot"
-    _attr_icon = "mdi:playlist-edit"
-    _attr_options: tuple[str, ...] = ()
-
-    def __init__(self, coordinator, entry):
-        super().__init__(coordinator, entry)
-        self._attr_unique_id = (
-            f"{entry.data['host']}_{entry.entry_id}_fav_save_slot"
-        )
-        if not hasattr(self._client, "_favourite_save_slot"):
-            self._client._favourite_save_slot = 1
-        self._favourite_manager = None
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        manager = get_local_favs(self.hass)
-        if manager:
-            self._favourite_manager = manager
-            self.async_on_remove(manager.async_listen(self.async_write_ha_state))
-
-    def _name_for_slot(self, slot: int) -> str:
-        manager = self._favourite_manager
-        local = manager.get(slot) if manager else None
-        if local and local.get("name"):
-            return str(local["name"])
-        for favourite in self._client.state.favourites or []:
-            if int(favourite.get("slot", 0) or 0) == slot:
-                return str(favourite.get("name") or f"Favourite {slot}")
-        return f"Favourite {slot}"
-
-    @property
-    def options(self) -> list[str]:
-        return [
-            f"{slot}: {self._name_for_slot(slot)}"
-            for slot in range(1, MAX_SLOTS + 1)
-        ]
-
-    @property
-    def current_option(self) -> str:
-        slot = int(getattr(self._client, "_favourite_save_slot", 1))
-        return f"{slot}: {self._name_for_slot(slot)}"
-
-    async def async_select_option(self, option: str) -> None:
-        try:
-            slot = int(option.split(":", 1)[0])
-        except (TypeError, ValueError):
-            return
-        self._client._favourite_save_slot = max(1, min(MAX_SLOTS, slot))
-        self.coordinator.async_set_updated_data(self._client.state)
-        self.async_write_ha_state()
-
-
-class LitheSpotifyTargetSelect(
-    CoordinatorEntity[LitheAudioCoordinator], SelectEntity
-):
-    """Persist the Spotify Connect destination for this physical speaker."""
-
-    _attr_has_entity_name = True
-    _attr_name = audio_control_name(10, "Spotify Connect Target")
-    _attr_icon = "mdi:spotify"
-
-    UNSET_LABEL = "(Select a Spotify target)"
-
-    def __init__(self, coordinator: LitheAudioCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._entry = entry
-        self._client = coordinator.client
-        self._attr_unique_id = (
-            f"{entry.data['host']}_{entry.entry_id}_spotify_target"
-        )
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return DeviceInfo(identifiers={(DOMAIN, self._entry.data["host"])})
-
-    @property
-    def available(self) -> bool:
-        return self._client.state.connected
-
-    def _spotify_sources(self) -> list[str]:
-        registry = er.async_get(self.hass)
-        sources: set[str] = set()
-        for registry_entry in registry.entities.values():
-            if (
-                registry_entry.domain != MEDIA_PLAYER_DOMAIN
-                or registry_entry.platform != "spotify"
-                or registry_entry.disabled_by is not None
-            ):
-                continue
-            state = self.hass.states.get(registry_entry.entity_id)
-            if state is None:
-                continue
-            sources.update(
-                source
-                for source in state.attributes.get("source_list", [])
-                if isinstance(source, str) and source.strip()
-            )
-        return sorted(sources, key=str.casefold)
-
-    @property
-    def options(self) -> list[str]:
-        targets = self._spotify_sources()
-        current = str(
-            self._entry.options.get(CONF_SPOTIFY_TARGET, "") or ""
-        )
-        if current and current not in targets:
-            targets.append(current)
-            targets.sort(key=str.casefold)
-        return [self.UNSET_LABEL, *targets]
-
-    @property
-    def current_option(self) -> str:
-        return str(
-            self._entry.options.get(CONF_SPOTIFY_TARGET, "")
-            or self.UNSET_LABEL
-        )
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-
-        @callback
-        def _spotify_state_changed(event: Event) -> None:
-            entity_id = str(event.data.get("entity_id", ""))
-            registry_entry = er.async_get(self.hass).async_get(entity_id)
-            if (
-                registry_entry is not None
-                and registry_entry.domain == MEDIA_PLAYER_DOMAIN
-                and registry_entry.platform == "spotify"
-            ):
-                self.async_write_ha_state()
-
-        self.async_on_remove(
-            self.hass.bus.async_listen(EVENT_STATE_CHANGED, _spotify_state_changed)
-        )
-
-    async def async_select_option(self, option: str) -> None:
-        options = dict(self._entry.options)
-        if option == self.UNSET_LABEL:
-            options.pop(CONF_SPOTIFY_TARGET, None)
-        elif option in self._spotify_sources():
-            options[CONF_SPOTIFY_TARGET] = option
-        else:
-            return
-        self.hass.data[DOMAIN][self._entry.entry_id][
-            "_skip_next_options_reload"
-        ] = True
-        self.hass.config_entries.async_update_entry(self._entry, options=options)
-        self.async_write_ha_state()
-
-
-class LitheCastGroupSelect(CoordinatorEntity[LitheAudioCoordinator], SelectEntity):
-    """Cast Group selector — routes future playback through a Google Cast group.
-
-    Lists Cast groups discovered from HA's Cast integration (configured in
-    the Google Home app). Picking one means subsequent `play_media`,
-    favourites, prayer audio, and TTS go through that Cast group's
-    media_player entity — providing true multi-room sync via Google's
-    cloud infrastructure.
-
-    Picking "(None)" clears routing and restores direct local playback.
-    """
-
-    _attr_has_entity_name = True
-    _attr_name = audio_control_name(10, "Cast Group")
-    _attr_icon = "mdi:speaker-multiple"
-
-    NONE_LABEL = "(None — local only)"
-
-    def __init__(self, coordinator: LitheAudioCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._entry = entry
-        self._client = coordinator.client
-        self._attr_unique_id = f"{entry.data['host']}_{entry.entry_id}_cast_group"
-        self._client.state.active_cast_group = str(
-            entry.options.get(CONF_CAST_GROUP_NAME, "") or ""
-        )
-        self._client.state.active_cast_group_entity = str(
-            entry.options.get(CONF_CAST_GROUP_ENTITY, "") or ""
-        )
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return DeviceInfo(identifiers={(DOMAIN, self._entry.data["host"])})
-
-    @property
-    def available(self) -> bool:
-        return self._client.state.connected
-
-    def _discover(self) -> list[dict]:
-        try:
-            from .group import discover_cast_groups
-            return discover_cast_groups(self.hass) or []
-        except Exception:
-            return []
-
-    @property
-    def options(self) -> list[str]:
-        """Live list of Cast groups + a 'None' option to clear routing."""
-        groups = self._discover()
-        labels = [g["name"] for g in groups]
-        current = getattr(self._client.state, "active_cast_group", "")
-        if current and current not in labels:
-            labels.append(current)
-        return [self.NONE_LABEL] + sorted(labels)
-
-    @property
-    def current_option(self) -> str:
-        """Current selection — the active Cast group name, or '(None)'."""
-        current = getattr(self._client.state, "active_cast_group", "")
-        return current if current else self.NONE_LABEL
-
-    async def async_select_option(self, option: str) -> None:
-        """Set or clear the Cast group routing for this speaker."""
-        if option == self.NONE_LABEL:
-            self._client.state.active_cast_group = ""
-            self._client.state.active_cast_group_entity = ""
-            options = dict(self._entry.options)
-            options.pop(CONF_CAST_GROUP_NAME, None)
-            options.pop(CONF_CAST_GROUP_ENTITY, None)
-            self.hass.data[DOMAIN][self._entry.entry_id][
-                "_skip_next_options_reload"
-            ] = True
-            self.hass.config_entries.async_update_entry(
-                self._entry, options=options
-            )
-            self.coordinator.async_set_updated_data(self._client.state)
-            self.async_write_ha_state()
-            return
-
-        # Find the matching group's entity_id
-        target_entity = None
-        for cg in self._discover():
-            if cg["name"] == option:
-                target_entity = cg["entity_id"]
-                break
-        if not target_entity:
-            return
-        self._client.state.active_cast_group = option
-        self._client.state.active_cast_group_entity = target_entity
-        options = {
-            **self._entry.options,
-            CONF_CAST_GROUP_NAME: option,
-            CONF_CAST_GROUP_ENTITY: target_entity,
-        }
-        self.hass.data[DOMAIN][self._entry.entry_id][
-            "_skip_next_options_reload"
-        ] = True
-        self.hass.config_entries.async_update_entry(self._entry, options=options)
-        self.coordinator.async_set_updated_data(self._client.state)
-        self.async_write_ha_state()
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
         self.async_write_ha_state()

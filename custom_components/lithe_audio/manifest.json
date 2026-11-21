@@ -1,27 +1,16 @@
 {
   "domain": "lithe_audio",
   "name": "Lithe Audio",
-  "after_dependencies": [
-    "cast",
-    "spotify",
-    "mass",
-    "music_assistant"
-  ],
   "codeowners": [
     "@litheaudio"
   ],
   "config_flow": true,
-  "dependencies": [
-    "http"
-  ],
   "documentation": "https://github.com/ChadH360/litheaudio-ha-integration",
   "integration_type": "device",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/ChadH360/litheaudio-ha-integration/issues",
-  "requirements": [
-    "pychromecast>=14.0.0"
-  ],
-  "version": "1.4.114.1",
+  "requirements": [],
+  "version": "1.4.114.2",
   "zeroconf": [
     {
       "type": "_googlecast._tcp.local.",
