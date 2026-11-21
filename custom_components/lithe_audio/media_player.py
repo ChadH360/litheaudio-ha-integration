@@ -483,14 +483,9 @@ class LitheAudioMediaPlayer(CoordinatorEntity[LitheAudioCoordinator], MediaPlaye
 
     @property
     def media_image_url(self) -> str | None:
-        # Prefer the current track's artwork. Fall back to the Lithe logo
-        # so the player card always has a visual identity even when idle.
-        # We serve the icon ourselves via the static path registered in
-        # card_resource.py — the local brand API endpoint requires an
-        # auth token which is awkward to inject from here. The brand/
-        # folder still handles the integration-level icon in the Devices
-        # & Services screen automatically (HA 2026.3+ local brands).
-        return self._client.state.artwork_url or "/lithe_audio_assets/icon.png"
+        # Current track artwork only. The old logo fallback was served by the
+        # removed card_resource static path, so it no longer exists.
+        return self._client.state.artwork_url or None
 
     @property
     def media_image_hash(self) -> str | None:
